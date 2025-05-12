@@ -1,0 +1,9 @@
+delete *_seq_*
+rotate query_name +30
+change query_name text-anchor end
+change query_name font-size 6
+rotate sbjct_name -30
+change sbjct_name text-anchor start
+change sbjct_name font-size 6
+change alignment stroke-width 3	# change alignment stroke-width 3
+# change alignment_space fill gray

@@ -1,0 +1,2576 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+Dotplotic - A program for visualization of BLAST search results
+
+=head1 SYNOPSIS
+
+Dotplotic [-options] --blast <BLAST output file in tabular format>
+
+=head1 DESCRIPTION
+
+This script converts a BLAST search output file in tabular format into an SVG file for visualization.
+
+=over 4
+
+=item B<--h(elp)>
+
+Detailed help
+
+=item B<--v(ersion)>
+
+Detailed the version of the script
+
+=item B<-b>, B<--blast>
+
+BLAST output file: (File or standard input from command line) (1) A tabular format (6, 7, or 10) is required. (2) If no file is provided, this program accepts input from standard output.
+
+e.g., (1) $ Dotplotic --blast blast6.tsv > Dotplotic.svg
+
+      (2) $ cat blast6.tsv | Dotplotic > Dotplotic.svg 
+
+=item B<-o>, B<--output>
+
+Output file name: If not specified, the SVG content will be written to standard output. 
+
+=item B<-qr>, B<--query>
+
+Order and region of queries: (String or File) 
+(1) By providing the correct file path, you can specify the region you want to draw with BED format. To specify the entire sequence, leave the second and third fields blank. 
+(2) You can specify sequences directly.
+(3) You can specify regions directly. (Default: Off)
+(4) You can sort queries by name or length. 
+(5) If you provide only a subject order (--subject), the order of queries will be automatically sorted to match the subject order, requiring additional time and memory space because of the best-path calculation.
+    If you need to reduce them, please specify both 'query' and 'subject' options as 'name'
+
+e.g., (1) $ Dotplotic --blast blast6.tsv --query queries.bed
+
+      (2) $ Dotplotic --blast blast6.tsv --query query1,query2,query3
+
+      (3) $ Dotplotic --blast blast6.tsv --query query1:1000-2000 
+
+      (4) $ Dotplotic --blast blast6.tsv --query length 
+
+      (5) $ Dotplotic --blast blast6.tsv --query name --subject name
+
+=item B<-sb>, B<--subject>
+
+Order and region of subjects: (String or File) 
+(1) By providing the correct file path, you can specify the region you want to draw with BED format. To specify the entire sequence, leave the second and third fields blank. 
+(2) You can specify sequences directly.
+(3) You can specify regions directly. (Default: Off)
+(4) You can sort subjects by name or length. 
+(5) If you provide only a query order (--query), the order of subjects will be automatically sorted to match the query order, requiring additional time and memory space because of the best-path calculation.
+    If you need to reduce them, please specify both 'query' and 'subject' options as 'name'
+
+e.g., (1) $ Dotplotic --blast blast6.tsv --subject subjects.bed
+
+      (2) $ Dotplotic --blast blast6.tsv --subject subject1,subject2,subject3
+       
+      (3) $ Dotplotic --blast blast6.tsv --subject subject1:1000-2000
+
+      (4) $ Dotplotic --blast blast6.tsv --subject length
+
+      (5) $ Dotplotic --blast blast6.tsv --subject name --query name 
+
+=item B<--outfmt>
+
+The format of BLAST output: (String) Choose one of the BLAST output formats: 6, 7, or 10. The following fields are required: qaccver, saccver, pident, bitscore, length, qstart, qend, sstart, and send. Please refer to the BLAST help documentation for more information. (Default: '6 std')
+
+=item B<-ann>, B<--annotation>
+
+Annotation file: (String or File or standard input from command line)
+(1) If annotation files are specified, the annotated region will be filled. Up to 20 files are supported. The file format is recognized by the suffix, and supported formats include BED (.bed), GFF (.gff), and OUT (.out) (from RepeatMasker). 
+(2) If you have multiple annotation files, list them separated by commas. 
+(3) Each annotation files have the following attributes: file name, color (col), and opacity (opac). The default opacity is 0.5. 
+(4) If you specify a BLAST file using the '--blast' option, you can provide an annotation file via standard input by using '-'. In this case, you must the file format using 'fmt=' 
+
+e.g., (1) $ Dotplotic --blast blast6.tsv --annotation cds.gff
+
+      (2) $ Dotplotic --blast blast6.tsv --annotation cds.gff,intron.bed,repeat.out
+
+      (3) $ Dotplotic --blast blast6.tsv --annotation cds.gff:col=red:pac=0.9
+
+      (4) $ cat genome.gff | awk '$3=="CDS" {print}' | Dotplotic --blast blast6.tsv --ann -:fmt=gff
+
+=item B<--identity_range>
+
+Range of BLAST Identity: (String) You can specify the value range for Identity of BLAST alignment, separated by a hyphen (e.g., 40-60). BLAST alignments with the Identity outside the range will be colored the same as the nearest limit. (Default: 60-100)
+
+=item B<-al>, B<--align_direction>
+
+Align directions of BLAST alignment: (Bool) If enabled, queries whose overall direction of BLAST alignment are opposite to that of their closest subject will be reversed. As a result, the general direction of the BLAST alignment will appear as a diagonal from top left to bottom right. Note: For searching the best path of all BLAST alignments, additional computation is required, which may significantly increase processing time and memory usage. If the order of queries and subjects are specified (using the '--query' and '--subject' options), this option will be ignored. (Default: Off)
+
+=item B<-c>, B<--click>
+
+Clickable details: (Bool) If enabled, the output file will include information. Clicking on alignments or annotations will display details, such as 'seq1 seq2 99,5 1234 ...' (as '6 std' format) or 'seq1 RefSeq CDS 12345 23456 ...'. This option will increase the output file size. (Default: Off)
+
+=item B<-l>, B<--light>
+
+Light and fast mode: (On or Off) If enabled, all short alignments (less than 1 kbp) will be skipped. When this option is specified, the '--query' and '--subject' options will be ignored, and queries and subjects are sorted by name. This can reduce processing time and output file size. (Default: Off)
+
+=item B<--color_set>
+
+Number of color sets: (1 or 2) 1) For maximum, midpoint and minimum identities in alignments, the colors are Red, Yellow and Light Green, respectively. 2) For maximum, midpoint and minimum identities in alignments, the colors are Deep Blue, Cyan and Yellow-Orange, respectively. (Default: 1)
+
+=item B<--bg_color_set>
+
+Number of background color sets: (1 or 2) 1) The background and text colors are black and white. 2) The background and text colors are white and black. (Default: 1)
+
+=item B<--auto_layout>
+
+Auto-modification of layout: (On or Off) When there are many sequences, such as in a genome comparison, sequence names and start/end positions may become difficult to read. If eabled, the output file will be automatically modified for better readability. (Default: On)
+
+=back
+
+=head1 SEE ALSO
+
+The GNU General Public License: L<http://www.gnu.org/licenses/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2025 Hideyuki, MIYAZAWA
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, see L<http://www.gnu.org/licenses/>.
+
+=head1 AUTHOR
+
+Hideyuki, MIYAZAWA <hmiyazawa0209@gmail.com>
+
+=cut
+
+#
+# Packages
+#
+
+package BLAST_ALIGN {
+    my @all_specifiers = qw(qseqid qgi qacc qaccver qlen sseqid sallseqid sgi sallgi sacc saccver sallacc slen qstart qend sstart send qseq sseq evalue bitscore score length pident nident mismatch positive gapopen gaps ppos frames qframe sframe btop staxid ssciname scomname sblastname sskingdom staxids sscinames scomnames sblastnames sskingdoms stitle salltitles sstrand qcovs qcovhsp qcovus);
+    my @std_specifiers = qw(qaccver saccver pident length mismatch gapopen qstart qend sstart send evalue bitscore);
+    my %all_specifiers = map{($_,1)} @all_specifiers;
+    my %std_specifiers = map{($_,1)} @std_specifiers;
+
+    sub new{
+        my ($class, $args) = @_;
+
+        if(
+            ($args->{qend} && $args->{qstart} && $args->{sstart} && $args->{send}) &&
+            ($args->{qend}  < $args->{qstart})
+        ){  # if qend<qsta, the direction is reverted.
+            ($args->{qstart}, $args->{qend}) = ($args->{qend}, $args->{qstart});
+            ($args->{sstart}, $args->{send}) = ($args->{send}, $args->{sstart});
+        }
+        
+        my $self;
+        map { $self->{$_} = $args->{$_} // "." } @all_specifiers;
+        $self->{best_path} = 0;
+
+        bless $self, $class;
+        return $self;
+    }
+    # getter
+    sub get_qseqid{ return $_[0]->{qseqid} }
+    sub get_qgi{ return $_[0]->{qgi} }
+    sub get_qacc{ return $_[0]->{qacc} }
+    sub get_qaccver{ return $_[0]->{qaccver} }
+    sub get_qlen{ return $_[0]->{qlen} }
+    sub get_sseqid{ return $_[0]->{sseqid} }
+    sub get_sallseqid{ return $_[0]->{sallseqid} }
+    sub get_sgi{ return $_[0]->{sgi} }
+    sub get_sallgi{ return $_[0]->{sallgi} }
+    sub get_sacc{ return $_[0]->{sacc} }
+    sub get_saccver{ return $_[0]->{saccver} }
+    sub get_sallacc{ return $_[0]->{sallacc} }
+    sub get_slen{ return $_[0]->{slen} }
+    sub get_qstart{ return $_[0]->{qstart} }
+    sub get_qend{ return $_[0]->{qend} }
+    sub get_sstart{ return $_[0]->{sstart} }
+    sub get_send{ return $_[0]->{send} }
+    sub get_qseq{ return $_[0]->{qseq} }
+    sub get_sseq{ return $_[0]->{sseq} }
+    sub get_evalue{ return $_[0]->{evalue} }
+    sub get_bitscore{ return $_[0]->{bitscore} }
+    sub get_score{ return $_[0]->{score} }
+    sub get_length{ return $_[0]->{length} }
+    sub get_pident{ return $_[0]->{pident} }
+    sub get_nident{ return $_[0]->{nident} }
+    sub get_mismatch{ return $_[0]->{mismatch} }
+    sub get_positive{ return $_[0]->{positive} }
+    sub get_gapopen{ return $_[0]->{gapopen} }
+    sub get_gaps{ return $_[0]->{gaps} }
+    sub get_ppos{ return $_[0]->{ppos} }
+    sub get_frames{ return $_[0]->{frames} }
+    sub get_qframe{ return $_[0]->{qframe} }
+    sub get_sframe{ return $_[0]->{sframe} }
+    sub get_btop{ return $_[0]->{btop} }
+    sub get_staxid{ return $_[0]->{staxid} }
+    sub get_ssciname{ return $_[0]->{ssciname} }
+    sub get_scomname{ return $_[0]->{scomname} }
+    sub get_sblastname{ return $_[0]->{sblastname} }
+    sub get_sskingdom{ return $_[0]->{sskingdom} }
+    sub get_staxids{ return $_[0]->{staxids} }
+    sub get_sscinames{ return $_[0]->{sscinames} }
+    sub get_scomnames{ return $_[0]->{scomnames} }
+    sub get_sblastnames{ return $_[0]->{sblastnames} }
+    sub get_sskingdoms{ return $_[0]->{sskingdoms} }
+    sub get_stitle{ return $_[0]->{stitle} }
+    sub get_salltitles{ return $_[0]->{salltitles} }
+    sub get_sstrand{ return $_[0]->{sstrand} }
+    sub get_qcovs{ return $_[0]->{qcovs} }
+    sub get_qcovhsp{ return $_[0]->{qcovhsp} }
+    sub get_qcovus{ return $_[0]->{qcovus} }
+    sub get_line{
+        my $sep = $_[1] // "\t";
+        my @outfmt = ($_[2]) ? @{$_[2]} : @std_specifiers;
+        my $line; 
+        map{ $line .= ($_[0]->{$_} =~ /\w/) ? $_[0]->{$_} : "0"; $line .="\t" } @outfmt;
+        return $line;
+    }
+    sub check_type{
+        my $check = 1;
+        $check = 0 if(! GIZMO::check($_[1]->{"pident"}, "percent"));
+        map{ $check = 0 if(! GIZMO::check($_[1]->{$_}, "uint")) } (qw(length mismatch gapopen qstart qend sstart send));
+        $check = 0 if(! GIZMO::check($_[1]->{"evalue"}, "extreme"));
+        return $check;
+    }
+}1;
+
+package BLAST_SEQUENCE {
+    use Data::Dumper;
+    sub new {
+        my ($class, $args) = @_;
+        ($args->{start}, $args->{end}) = ($args->{end}, $args->{start}) if($args->{end} < $args->{start});
+        # $args->{length} = $args->{end} if(! $args->{length});
+
+        $args->{$_} //= "" for qw(start end len counterparts);
+        my $self = {
+            start           => $args->{start},
+            end             => $args->{end},
+            direction       => $args->{direction},
+            length          => $args->{length},
+            counterparts    => $args->{counterparts},   # the order of sequences sorted by the BitScore
+            strands         => $args->{strands},        # the strand with another sequences : strand->{sequence_name} = +/-
+            bp_scores       => $args->{bp_scores},      # bp_scores->{sequence_name} = BitScore
+        };
+        bless $self, $class;
+        return $self;
+    }
+    # getter
+    sub get_start { return $_[0]->{start} // 0 ;}
+    sub get_end { return $_[0]->{end} // 0 ;}
+    sub get_strands { return $_[0]->{strand} // "" ;}
+    sub get_length { return $_[0]->{length} // 0 ;}
+    sub get_counterparts{ return $_[0]->{counterparts} // "" ;}
+    sub get_bp_scores{ return $_[0]->{bp_scores} // 0 ;}
+    # setter
+    sub set_start { $_[0]->{start} = $_[1];}
+    sub set_end { $_[0]->{end} = $_[1];}
+    sub set_strands { $_[0]->{strand} = $_[1];}
+    sub set_counterparts { $_[0]->{counterparts} = $_[1];}
+    sub set_bp_scores { $_[0]->{bp_scores} = $_[1];}
+}1;
+
+package BLAST_META {
+    use Data::Dumper;
+    sub new {
+        my ($class, $args) = @_;
+        my $self = {
+            query_order_region  => $args->{query_order_region}, # array of BED : the order and the regions are fixed
+            query_total_len     => $args->{query_total_len},
+            sbjct_order_region  => $args->{sbjct_order_region}, # array of BED : the order and the regions are fixed
+            sbjct_total_len     => $args->{sbjct_total_len},
+            total_align_num     => $args->{total_align_num},
+        };
+        bless $self, $class;
+        return $self;
+    }
+    # getter
+    sub get_query_total_len{ return $_[0]->{query_total_len};}
+    sub get_sbjct_total_len{ return $_[0]->{sbjct_total_len};}
+    sub get_query_order_region{ return $_[0]->{query_order_region};}
+    sub get_sbjct_order_region{ return $_[0]->{sbjct_order_region};}
+    sub get_total_align_num{ return $_[0]->{total_align_num};}
+    # setter 
+    sub set_query_total_len{ $_[0]->{query_total_len} = $_[1];}
+    sub set_sbjct_total_len{ $_[0]->{sbjct_total_len} = $_[1];}
+    sub set_query_order_region{
+        my $total_len = 0 ;
+        for my $bed (@{$_[1]}){
+            push(@{$_[0]->{query_order_region}}, $bed);
+            $total_len += $bed->get_end() - $bed->get_start() +1 ;
+        }
+        $_[0]->{query_total_len} = $total_len;
+    }
+    sub set_sbjct_order_region{
+        my $total_len = 0 ;
+        for my $bed (@{$_[1]}){
+            push(@{$_[0]->{sbjct_order_region}}, $bed);
+            $total_len += $bed->get_end() - $bed->get_start() +1 ;
+        }
+        $_[0]->{sbjct_total_len} = $total_len;
+    }
+    sub set_total_align_num{ $_[0]->{total_align_num} = $_[1];}
+}1;
+
+package BLAST_DATA {
+    use Data::Dumper;
+    my @all_specifiers = qw(qseqid qgi qacc qaccver qlen sseqid sallseqid sgi sallgi sacc saccver sallacc slen qstart qend sstart send qseq sseq evalue bitscore score length pident nident mismatch positive gapopen gaps ppos frames qframe sframe btop staxid ssciname scomname sblastname sskingdom staxids sscinames scomnames sblastnames sskingdoms stitle salltitles sstrand qcovs qcovhsp qcovus);
+    my %all_specifiers = map{($_,1)} @all_specifiers;
+
+    my @std_specifiers = qw(qaccver saccver pident length mismatch gapopen qstart qend sstart send evalue bitscore);
+    my $std_specifiers = join(" ", @std_specifiers);
+    my %std_specifiers = map{($_,1)} @std_specifiers;
+
+    sub new {
+        my ($class, $blast_file, $outfmt, $upper_required, $query_reg, $sbjct_reg, $constraint) = @_; # $upper_required : The specifiers that User required, space separated.
+        $outfmt =~ s/std/$std_specifiers/;
+        my @outfmt = split(/\s+/, $outfmt); shift(@outfmt);
+        my %outfmt = map{($_,1)}(@outfmt);
+        $upper_required =~ s/std/$std_specifiers/;
+
+        my $align_constraint = align_constraint($constraint); 
+
+        my $specified_queries; map{push(@{$specified_queries->{$_->get_seqname}}, [$_->get_start, $_->get_end]) }(@{$query_reg->{anns}}) if($query_reg->{anns});
+        my $specified_sbjects; map{push(@{$specified_sbjects->{$_->get_seqname}}, [$_->get_start, $_->get_end]) }(@{$sbjct_reg->{anns}}) if($sbjct_reg->{anns});
+
+        my $spe_pos = input_outfmt($outfmt, $upper_required, \%all_specifiers); # $spe_pos{specifier} -> the position on the blast lines; ex) $ordinal{"qaccver"} = 0;
+        my $dlm = get_delimiter($outfmt);
+
+        my $aligns ; # $align->{qaccver}{saccver} = @{BLAST_ALIGN};
+        my $queries; # $queries->{qaccver} = $BLAST_SEQUENCE;
+        my $subjcts; # $subjcts->{saccver} = $BLAST_SEQUENCE;
+        my $total_align_num = 0;
+        if( ! GIZMO::check($blast_file, "file") && $blast_file ne "-"){
+            die "I cannot find your BLAST file. Please input correctly!!\nSTOP\n";
+        }
+        open my $IN, "<".$blast_file || die "Can't open the blast file!!\n";
+            while(my $l = <$IN>){
+                next if($l =~ /^#/ || $l !~ /\w/);
+                chomp($l);
+                my $data;
+                $data->{$outfmt[$_]} = ${[split(/$dlm/, $l)]}[$_] for (0..@outfmt-1);
+                my $align = BLAST_ALIGN->new($data);
+
+                next if($align_constraint && ! $align_constraint->($align));
+
+                my ($query_name, $sbjct_name) = ($align->get_qaccver, $align->get_saccver);
+                my ($qsta, $qend, $ssta, $send) = ($align->get_qstart, $align->get_qend, $align->get_sstart, $align->get_send); 
+                my ($qlen, $slen) = ($align->get_qlen, $align->get_slen);
+                ($ssta, $send) = ($send, $ssta) if($send < $ssta);
+
+                # skip when the sequence is not specified by the user, or outside of the specified region
+                next if(! check_alignment_inside($specified_queries, $specified_sbjects, $align));
+
+                push(@{$aligns->{$query_name}{$sbjct_name}}, $align);
+                ++$total_align_num;
+
+                # Calculating the temporary sequence regions 
+                my $k=1;
+                $k *= set_seq_reg($queries, $query_name, $qsta, $qend);
+                $k *= set_seq_reg($subjcts, $sbjct_name, $ssta, $send);
+
+                # Calculating the temporary sequence lengths
+                $k *= check_seq_length($queries, $query_name, $qlen) ;
+                $k *= check_seq_length($subjcts, $sbjct_name, $slen) ;
+
+                stop_at_a_line($l, $outfmt, $dlm) if(! $k);
+            }
+        close $IN;
+        
+        if( ! scalar keys %{$aligns}){
+            die "There are no alignments. Please check your BLAST output file or the query and subject conditions.\n"; 
+        }
+
+        # hash of BLAST_SEQUENCE(start, end, direction, length, counterparts, strands, bp_scores)
+        my $query_data; $query_data->{$_} = BLAST_SEQUENCE->new($queries->{$_}) for (keys %{$queries});
+        my $sbjct_data; $sbjct_data->{$_} = BLAST_SEQUENCE->new($subjcts->{$_}) for (keys %{$subjcts});
+
+        # sequence order, etc
+        my $blast_meta = BLAST_META->new();
+        $blast_meta->set_total_align_num($total_align_num);
+        complement_region_data($query_data, $query_reg->{anns});
+        complement_region_data($sbjct_data, $sbjct_reg->{anns});
+        # if the sequence length is defined and the start and end are NOT defined by user, (e.g., '--outfmt "6 std qlen" --query query1 ')
+        #   start = 1, end = the_sequence_length
+        # if the sequence length is NOT defined and the start and end are NOT defined by user, (e.g., '--outfmt "6 std" --query query1 ')
+        #   start = alignment_start, end = alignment_end
+
+        my $bp_data_all;
+        $query_reg->{sort_by} //= "auto";
+        $sbjct_reg->{sort_by} //= "auto";
+        if($query_reg->{sort_by} eq "name" || $query_reg->{sort_by} eq "length"){
+            $query_reg->{anns} = sort_sequences($query_data, $query_reg->{sort_by}, $outfmt{"qlen"});
+        }
+        if($sbjct_reg->{sort_by} eq "name" || $sbjct_reg->{sort_by} eq "length"){
+            $sbjct_reg->{anns} = sort_sequences($sbjct_data, $sbjct_reg->{sort_by}, $outfmt{"slen"});
+        }
+
+        if($query_reg->{anns} && $sbjct_reg->{anns}){ # Both queries and subject are specified by users
+            $blast_meta->set_query_order_region($query_reg->{anns}) ; # @{$query_reg->{anns}} is array of ANNOTATION objects (bed)
+            $blast_meta->set_sbjct_order_region($sbjct_reg->{anns}) ;
+        } else{
+            $bp_data_all = search_best_path_all($aligns, $query_data, $sbjct_data); 
+
+            if( ! $query_reg->{anns} && ( $sbjct_reg->{anns} || $sbjct_reg->{sort_by} eq "name" || $sbjct_reg->{sort_by} eq "auto") ){
+                # query: defined, subject: undef
+                $sbjct_reg->{anns} = sort_sequences($sbjct_data, "name", $outfmt{"slen"}) if( ! $sbjct_reg->{anns});
+                $blast_meta->set_sbjct_order_region($sbjct_reg->{anns}) ;
+                
+                $query_reg->{anns} = find_counterparts($bp_data_all, $query_data, $sbjct_data, "s2q", $sbjct_reg->{anns}, $outfmt{"slen"});
+                $blast_meta->set_query_order_region($query_reg->{anns}) ;
+
+            } elsif( ( $query_reg->{anns} || $query_reg->{sort_by} eq "name" || $query_reg->{sort_by} eq "auto" ) && ! $sbjct_reg->{anns} ){
+                # query: undef, subject: defined
+                $query_reg->{anns} = sort_sequences($query_data, "name", $outfmt{"qlen"}) if( ! $query_reg->{anns});
+                $blast_meta->set_query_order_region($query_reg->{anns}) ;
+
+                $sbjct_reg->{anns} = find_counterparts($bp_data_all, $query_data, $sbjct_data, "q2s", $query_reg->{anns}, $outfmt{"qlen"});
+                $blast_meta->set_sbjct_order_region($sbjct_reg->{anns}) ;
+            } else{ # q:auto && s:auto => q:name && s:name
+                $blast_meta->set_sbjct_order_region(sort_sequences($sbjct_data, "name", $outfmt{"slen"})) ;
+                $blast_meta->set_query_order_region(sort_sequences($query_data, "name", $outfmt{"qlen"})) ;
+            }
+        }
+
+        my $self = {
+            file_name       =>  $blast_file,
+            specifier_order =>  $spe_pos,
+            align           =>  $aligns,		# push(@{$aligns->{$query_name}{$sbjct_name}}, BLAST_ALIGN->new(%align_data));
+            query_data      =>  $query_data,    # start, end, length, counterparts, Total bit scores on best paths
+            sbjct_data      =>  $sbjct_data,    # start, end, length, counterparts, Total bit scores on best paths
+            meta_data       =>  $blast_meta,    # queries and subjects : order, total length 
+            best_path       =>  $bp_data_all,   # $bp_data_all->{qaccver}{saccver} = $BLAST_ALIGN
+        };
+        bless $self, $class;
+        return $self;
+    }
+
+    # getter
+    sub get_specifier_order{ return @{$_[0]->{specifier_order}}; }
+
+    # setter
+    sub check_seq_length{
+        # $data = $_[0], $sequence_name = $_[1], $the_len = $_[2]
+        if($_[2] && $_[2] ne "." && ! GIZMO::check($_[2], "uint")){
+            print "Not numeric characters are used as a sequence length!\n";
+            return 0;
+        }
+
+        if($_[2] && $_[2] ne "."){ # If the sequence length is shown in the line, such as "6 std qlen slen"
+            if( ! $_[0]->{$_[1]}{length}){ # If a length of the sequence is not defined yet,
+                $_[0]->{$_[1]}{length} = $_[2];
+            } elsif($_[0]->{$_[1]}{length} != $_[2]){
+                print "The length of ".$_[0]." is not constant: ".$_[0]->{$_[1]}{length}." or ".$_[2]." ?\n";
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+    sub align_constraint{
+        my $constraint = shift;
+        my $conditions;
+        return "" if( ! $constraint || ! scalar keys %{$constraint});
+
+        for my $tag (keys %{$constraint}){
+            my ($min, $max) = split(/\-/, $constraint->{$tag});
+            $min //= "0";
+            $max //= "";
+            ($min, $max) = ($max, $min) if($min && $max && $max < $min);
+            ($conditions->{$tag}->{min}, $conditions->{$tag}->{max}) = ($min, $max);
+        }
+        return sub{
+            my $align = shift;
+            my $check=1;
+            for my $tag (keys %{$conditions}){
+                if($conditions->{$tag}->{min} && $conditions->{$tag}->{max}){
+                    $check = 0 unless($conditions->{$tag}->{min} <= $align->{$tag} && $align->{$tag} <= $conditions->{$tag}->{max});
+                } elsif($conditions->{$tag}->{min}){
+                    $check = 0 unless($conditions->{$tag}->{min} <= $align->{$tag});
+                } elsif($conditions->{$tag}->{max}){
+                    $check = 0 unless($align->{$tag} <= $conditions->{$tag}->{max});
+                }
+            }
+            return $check;
+        }
+    }
+
+    sub set_best_path_all{
+        # $data = $_[0]
+        return 1 if( ! $_[0]->{best_path});
+        $_[0]->{best_path} = search_best_path_all($_[0]->{align}, $_[0]->{query_data}, $_[0]->{sbjct_data});
+        return 1;
+    }
+
+    sub check_alignment_inside{
+        return 1 if( ! $_[0] && ! $_[1]);
+        my $specified_queries = $_[0];
+        my $specified_sbjects = $_[1];
+        my $align = $_[2];
+
+        my ($check_q, $check_s) = (0,0);
+        if(! $specified_queries){
+            $check_q=1;
+        } elsif($specified_queries->{$align->get_qaccver}){
+            for my $reg (@{$specified_queries->{$align->get_qaccver}}){
+                my ($rsta, $rend) = @{$reg};
+                if( (! $rend) || check_overlap_or_not($align->get_qstart, $align->get_qend, $rsta, $rend) ){
+                    $check_q=1;
+                    next;
+                }
+            }
+        } else{
+            $check_q=0;
+        }
+
+        if(! $specified_sbjects){
+            $check_s=1;
+        } elsif($specified_sbjects->{$align->get_saccver}){
+            for my $reg (@{$specified_sbjects->{$align->get_saccver}}){
+                my ($rsta, $rend) = @{$reg};
+                if( (! $rend) || check_overlap_or_not($align->get_sstart, $align->get_send, $rsta, $rend) ){
+                    $check_s=1;
+                    next;
+                }
+            }
+        } else{
+            $check_s=0;
+        }
+
+        return $check_q * $check_s;
+    }
+
+    sub check_overlap_or_not{ # (sta1, end1, sta2, end2)
+        my ($sta1, $end1, $sta2, $end2) = @_; # alignment = sta1 - end1, specified region = sta2 - end2
+        my $check=0;
+        if($end2){
+            $sta2 = 1 if($sta2 eq "");
+            if($end1 - $sta1 < $end2 - $sta2){
+                $check=1 if( ($sta2<=$sta1 && $sta1<=$end2) || ($sta2<=$end1 && $end1<=$end2)) ;
+            } else{
+                $check=1 if( ($sta1<=$sta2 && $sta2<=$end1) || ($sta1<=$end2 && $end2<=$end1)) ;
+            }
+        } elsif($sta2 && ! $end2){
+            $check=1 if($sta2 <= $end1);
+        } else{
+            $check=1;
+        }
+        return $check;
+    }
+
+    sub complement_region_data{ # if region data specified by users is not enough, essential data, such as start and end, are given by Blast sequence data
+        # from $_[0] : sequence data (BLAST_SEQUENCE) from Blast
+        # into $_[1] : sequence data (ANNOTATION) from users' designation
+        my $blast_seq_data = $_[0];
+        my $annotation_data = $_[1];
+        return 1 if( ! $annotation_data);
+        for my $i (0..@{$annotation_data}-1){
+            if($annotation_data->[$i]->{start} && $annotation_data->[$i]->{end}){
+                ;
+            } elsif($blast_seq_data->{$annotation_data->[$i]->get_seqname}->{length} && ! $annotation_data->[$i]->{start} && ! $annotation_data->[$i]->{end}){ # If the sequence length defined,
+                $annotation_data->[$i]->{start} = 1;
+                $annotation_data->[$i]->{end}   = $blast_seq_data->{$annotation_data->[$i]->get_seqname}->{length};
+            } else{
+                for my $att (qw(start end)){
+                    if( ! $annotation_data->[$i]->{$att} && $blast_seq_data->{$annotation_data->[$i]->get_seqname}->{$att}){
+                        $annotation_data->[$i]->{$att} = $blast_seq_data->{$annotation_data->[$i]->get_seqname}->{$att};
+                    }
+                }
+            }
+        }
+    }
+
+    sub set_seq_reg{ # set_seq_reg($queries, $query_name, $align->{qstart}, $align->{qend});
+
+        if(! GIZMO::check($_[2], "uint") || ! GIZMO::check($_[3], "uint")){
+            print "Not integer greater than or equal to 1 is used as position\n" ;
+            return 0;
+        }
+        if(! $_[0]->{$_[1]}{start}){
+            $_[0]->{$_[1]}{start} = $_[2];
+            $_[0]->{$_[1]}{end} = $_[3];
+        } elsif($_[2]<$_[3]){   # Forward
+            $_[0]->{$_[1]}{start} = $_[2] if($_[2] < $_[0]->{$_[1]}{start});
+            $_[0]->{$_[1]}{end}   = $_[3] if($_[0]->{$_[1]}{end} < $_[3]);
+        } elsif($_[3]<$_[2]){   # Reverse
+            $_[0]->{$_[1]}{start} = $_[3] if($_[3] < $_[0]->{$_[1]}{start});
+            $_[0]->{$_[1]}{end}   = $_[2] if($_[0]->{$_[1]}{end} < $_[2]);
+        } else{
+            return 0;
+        }
+        return 1;
+    }
+
+    sub input_outfmt{
+        my $outfmt = shift;
+        my $upper_required = shift;
+        my $all_specifiers = shift;
+        die "$outfmt\nPlease use Blast outfmt option 6 or 7. (see. \"blastn --help\" etc.)\n" if($outfmt !~ /^6/ && $outfmt !~ /^7/);
+
+        my @outfmt = split(/\s+/, $outfmt); shift(@outfmt);
+        my %outfmt = map{($_,1)}(@outfmt);
+
+        my %upper_required = map{($_,1)}(split(/\s+/, $upper_required)); # essential specifiers
+
+        # check specifiers
+        my $check=1;
+        for my $spe (sort keys %upper_required){
+            if(! $all_specifiers->{$spe}){ 
+                print "The specifier ".$spe." that required in this program is not used in Blast search!\n"; 
+                $check=0;
+            }
+            if(! $outfmt{$spe}){
+                print "The essential specifier \"".$spe."\" is not included in your outfmt!\n";
+                $check=0;
+            }
+        }
+        for my $spe (@outfmt){
+            if(! $all_specifiers->{$spe}){
+                print "A specifier in outfmt, ".$spe.", is not used in Blast search!\n";
+                $check=0;
+            }
+        }
+        die "STOP\n" if (! $check);
+
+        my $spe_pos;
+        map{ $spe_pos->{$outfmt[$_]} = $_ } (0..@outfmt-1); # $spe_pos{specifier} -> the position on the blast lines; ex) $spe_pos{"qaccver"} = 0;
+        return $spe_pos;
+    }
+
+    sub get_delimiter{
+        my $delimiter;
+        if($_[0] =~ /^6/){
+            $delimiter = "\t";
+        } elsif($_[0] =~ /^7/){
+            $delimiter = ",";
+        } else{
+            die "Please use \'6\' or \'7\' as alignment view option!!\n";
+        }
+        return $delimiter;
+    }
+
+    sub stop_at_a_line{
+        my ($l, $outfmt, $delimiter) = @_;
+        my @l = split(/$delimiter/, $l); 
+        my @o = split(/ /, $outfmt); shift(@o);
+        my ($line1, $line2);
+        for my $i (0..@o-1){
+            $o[$i] =~ s/\s+//g;
+            $l[$i] =~ s/\s+//g;
+            if(length($l[$i]) < length($o[$i])){
+                $l[$i] .= " " while(length($l[$i]) < length($o[$i]));
+            } else{
+                $o[$i] .= " " while(length($o[$i]) < length($l[$i]));
+            }
+            $line1 .= $o[$i].$delimiter;
+            $line2 .= $l[$i].$delimiter;
+        }
+        print "\t$line1\n";
+        print "\t$line2\n";
+        die "Please check this blast line and your outfmt!\nSTOP\n" ;
+    }
+
+    sub sort_sequences{ # $query_reg->{ann} = sort_sequences($query_data, $query_reg->{sort_by}, $outfmt{qlen/slen});
+        # $_[0] = query||subject _data 
+        # $_[1] = name|length
+        # $_[2] = the length is defined or not
+        my $anns;
+        if($_[1] eq "name"){
+            for my $seq (sort keys %{$_[0]}){
+                my $data;
+                $data->{seqname} = $seq;
+                if($_[2]){ # If the sequence length is shown in blast lines,
+                    $data->{start} = 1;
+                    $data->{end} = $_[0]->{$seq}->get_length;
+                } else{
+                    $data->{start} = $_[0]->{$seq}->get_start;
+                    $data->{end} = $_[0]->{$seq}->get_end;
+                }
+                push(@{$anns}, ANNOTATION->new($data));
+            }
+        } elsif($_[1] eq "length"){
+            my %data;
+            for my $seq (sort keys %{$_[0]}){
+                $data{$seq}{"length"} = $_[0]->{$seq}->get_length // $_[0]->{$seq}->get_end - $_[0]->{$seq}->get_start +1;
+                if($_[2]){ # If the sequence length is shown in blast lines,
+                    $data{$seq}{"start"}= 1;
+                    $data{$seq}{"end"}  = $_[0]->{$seq}->get_length;
+                } else{
+                    $data{$seq}{"start"}= $_[0]->{$seq}->get_start;
+                    $data{$seq}{"end"}  = $_[0]->{$seq}->get_end;
+                    $data{$seq}{"length"} = $data{$seq}{"end"} - $data{$seq}{"start"} +1;
+                }
+            }
+            for my $seqname (sort{$data{$b}{"length"} <=> $data{$a}{"length"}} keys %data){
+                my $ann;
+                $ann->{seqname} = $seqname;
+                $ann->{start} = $data{$seqname}{"start"};
+                $ann->{end}   = $data{$seqname}{"end"};
+                push(@{$anns}, ANNOTATION->new($ann));
+            }
+        }
+
+        return $anns;
+    }
+
+    sub search_best_path_all{
+        # $_[0] = $aligns
+        # $_[1] = hash of BLAST_SEQUENCE(start, end, direction, length, counterparts, strands, bp_scores) of query
+        # $_[2] = hash of BLAST_SEQUENCE(start, end, direction, length, counterparts, strands, bp_scores) of subject
+        
+        my $bp_all; # $bp_all->{qaccver}{saccver} = summary of alignments on best path as $BLAST_ALIGN (the Bitscore is total score of best paths)
+        for my $q (keys %{$_[0]}){
+            my $qlen = $_[1]->{$q}->get_length ;
+            for my $s (keys %{$_[0]->{$q}}){
+                my $slen = $_[2]->{$s}->get_length ;
+                my $best_path = search_best_path_each($_[0]->{$q}{$s}, $qlen, $slen);
+                # $best_path->{qaccver} = $q;
+                # $best_path->{saccver} = $s;
+                $bp_all->{$q}{$s} = $best_path;
+            }
+        }
+        return $bp_all;
+    }
+
+    sub search_best_path_each{ # $_[0] = @{BLAST_ALIGN objects}, $_[3] = $parameters
+        # Given alignments consisting one query and one subject, search best path, and return the bp score
+        my $qlen = $_[1];
+        my $slen = $_[2];
+        
+        my $bp_sum; # summarized of alignments in best path as a BLAST_ALIGN object
+
+        return BLAST_ALIGN->new($bp_sum) if(! $_[0]->[0]);
+
+        my $bp_overlap_prop      = $_[3]->{bp_overlap_prop} // 0.01;
+        my $bp_min_reqr_len_prop = $_[3]->{bp_min_reqr_len_prop} // 0.01;
+
+        my ($whole_bpscrs, $whole_strnds); # Total Bit Scores on best paths: $bp_scores->{$query}{$subject} = $total_bit_scores_on_best_path
+
+        my ($q2s_bpscrs, $q2s_strnds);
+        my $min_mlen = ($qlen < $slen) ? $qlen*$bp_min_reqr_len_prop : $slen*$bp_min_reqr_len_prop ; 
+
+        my (@alignF, @alignR);
+        for my $i (0..@{$_[0]}-1){
+            my $align = $_[0]->[$i];
+            # filtering by align length
+            next if($align->get_length < $min_mlen);
+            
+            # separating aligns by the direction
+            $align->{"pos"} = $i;
+            if($align->get_sstart < $align->get_send){ # direction of alignment
+                push(@alignF, $align); # forward
+            } else{
+                push(@alignR, $align); # backward
+            }
+        }
+        for my $align (@{$_[0]}){
+            $align->{best_path} = 0;
+        }
+
+        # sort by the start position
+        @alignF = sort{$a->get_qstart <=> $b->get_qstart || $a->get_qend <=> $b->get_qend || $a->get_sstart <=> $b->get_sstart || $a->get_send <=> $b->get_send } @alignF;
+        @alignR = sort{$a->get_qstart <=> $b->get_qstart || $a->get_qend <=> $b->get_qend || $b->get_send <=> $a->get_send || $b->get_sstart <=> $a->get_sstart } @alignR;
+
+        # search for best path on each strand
+        my $bp_F = search_best_path_each_strand([@alignF], "F", $bp_overlap_prop); 
+        my $bp_R = search_best_path_each_strand([@alignR], "R", $bp_overlap_prop);
+
+        if( $bp_F->get_bitscore && ! $bp_R->get_bitscore || $bp_F->get_bitscore > $bp_R->get_bitscore ){
+            $bp_sum = $bp_F;
+            $bp_sum->{$bp_sum} = "F";
+        } elsif( ! $bp_F->get_bitscore && $bp_R->get_bitscore || $bp_F->get_bitscore < $bp_R->get_bitscore ){
+            $bp_sum = $bp_R;
+            ($bp_sum->{sstart}, $bp_sum->{send}) = ($bp_sum->{send}, $bp_sum->{sstart});
+            $bp_sum->{$bp_sum} = "R";
+        } else{
+            my $null;
+            return BLAST_ALIGN->new($null);
+        }
+
+        return BLAST_ALIGN->new($bp_sum);
+    }
+
+    sub search_best_path_each_strand{
+        # $_[0]->{qaccver}{saccver} = @{BLAST_ALIGN};
+        my $direction = $_[1];
+        my $bp_overlap_prop = $_[2];
+
+        my $bp_aln; # summary of alignment in best path as a BLASTN_ALIGN object
+        $bp_aln->{bitscore} = 0;
+
+        return BLAST_ALIGN->new($bp_aln) if( ! $_[0]->[0] );
+
+        $bp_aln->{qaccver} = $_[0]->[0]->get_qaccver;
+        $bp_aln->{saccver} = $_[0]->[0]->get_saccver;
+        
+		unshift(@{$_[0]}, BLAST_ALIGN->new()); # make head alignment NULL
+		my (%dp, %link); $link{1}=0;
+		my $last = 1 ;
+		if( scalar(@{$_[0]}) == 2 ){
+			# my ($query1, $sbjct1, $ident1, $mlen1, $mis_n1, $gap_n1, $qsta1, $qend1, $ssta1, $send1, $eval1, $dp_scr1, $other1) = @{$lines[1]};
+			$dp{1} = $_[0][1]->get_bitscore;
+        } else{
+			for my $i (1..@{$_[0]}-1){
+				$dp{$i} = $_[0][$i]->get_bitscore if(! $dp{$i}); # using one's own bitscore if undefined
+				for my $j ($i+1..@{$_[0]}-1){
+					if( ! $_[0][$j]->get_bitscore && $_[0][$j]->get_bitscore ne "0" ){
+						print STDERR $_[0][$j]->get_line;
+						die "\nThere are no DP_scores!!\n";
+					}
+
+					## Skip if the one is sunk in the other.
+					next if( check_sunk($_[0][$i], $_[0][$j]) );
+
+					## Skip if the two aligns are too overlapping
+                    next if( check_overlap_in_bp_search($_[0][$i], $_[0][$j], $direction, $bp_overlap_prop) );
+                    
+					 ## lace paths if the bitscore is bigger than the current one
+					if(!$dp{$j} || $dp{$j} < $dp{$i} + $_[0][$j]->get_bitscore ){
+						$dp{$j} = $dp{$i} + $_[0][$j]->get_bitscore ;
+						$link{$j} = $i; # path root
+						$last = $j if($last<$j);
+					}
+				}
+			}
+		}
+
+        my $max_end = $last ;
+        map{$max_end = $_ if($dp{$max_end}<$dp{$_})}(keys(%dp));
+
+        while($max_end>0){
+            $_[0][$max_end]->{best_path} = 1;
+            my $aln = $_[0][$max_end];
+
+            $bp_aln->{length} += $aln->{length};
+            $bp_aln->{qstart} = $aln->get_qstart if( ! $bp_aln->{qstart} || $aln->get_qstart < $bp_aln->{qstart});
+            $bp_aln->{qend}   = $aln->get_qend   if( ! $bp_aln->{qend}   || $bp_aln->{qend}  < $aln->get_qend   );
+            $bp_aln->{bitscore} += $aln->get_bitscore;
+            if( $aln->get_sstart < $aln->get_send ){
+                $bp_aln->{sstrand} = "F";
+                $bp_aln->{sstart} = $aln->get_sstart if( ! $bp_aln->{sstart} || $aln->get_sstart < $bp_aln->{sstart} );
+                $bp_aln->{send}   = $aln->get_send   if( ! $bp_aln->{send}   || $bp_aln->{send}  < $aln->get_send    );
+            } else{
+                $bp_aln->{sstrand} = "R";
+                $bp_aln->{sstart} = $aln->get_sstart if( ! $bp_aln->{sstart} || $bp_aln->{sstart} < $aln->get_sstart );
+                $bp_aln->{send}   = $aln->get_send   if( ! $bp_aln->{send}   || $aln->get_send    < $bp_aln->{send}  );
+            }
+
+            last if(! $link{$max_end});
+            $max_end = $link{$max_end};
+        }
+        $_[0][$max_end]->{best_path} = 1;
+        shift(@{$_[0]});
+
+		return BLAST_ALIGN->new($bp_aln);
+    }
+
+    sub find_counterparts{
+        # $query_reg->{anns} = find_counterparts($bp_data_all, $query_data, $subject_data, "s2q", $sbjct_reg->{anns}, $outfmt{"slen"});
+        # $query_reg->{anns} = find_best_pair($bp_data_all, "s2q");
+        # $blast_meta->set_query_order_region($query_reg->{anns}) ;
+        my $bp_data_all = $_[0];
+        my $query_data = $_[1];
+        my $sbjct_data = $_[2];
+        my $direction = $_[3]; # q2s or s2q
+        my $defined_anns = $_[4];
+        my $len_def = $_[5]; # $outfmt{"qlen"} or $outfmt{"slen"}
+
+        my $undef_anns;
+
+        my $best_group; # collect queries choosing each subject as best
+        my ($defseq_data, $udfseq_data) = ($direction eq "q2s") ? ($query_data, $sbjct_data) : ($sbjct_data, $query_data) ; 
+            # defseq_data : already defined data
+            # udfseq_data : undined seq data
+        for my $udfs (keys %{$udfseq_data}){ 
+            my $best_aln = BLAST_ALIGN->new(); # as a BLASTN_ALIGN object
+            for my $defs (keys %{$defseq_data}){
+                my $bp = ($direction eq "q2s") ? $bp_data_all->{$defs}{$udfs} : $bp_data_all->{$udfs}{$defs} ; 
+                next if( ! $bp || $bp->get_bitscore eq ".");
+                if( $best_aln->get_bitscore eq "." || $best_aln->get_bitscore < $bp->get_bitscore){
+                    $best_aln = $bp ;
+                }
+            }
+            next if($best_aln->get_sstart eq ".");
+            if( ($best_aln->get_qend - $best_aln->get_qstart)/2 < $best_aln->get_length &&
+                ($best_aln->get_send - $best_aln->get_sstart)/2 < $best_aln->get_length
+            ){ # Even if the subject is selected as Best, it will be skipped if the total alignment length is too short. 
+                if(($direction eq "q2s")){
+                    push( @{$best_group->{$best_aln->get_qaccver}}, $best_aln);
+                } else{
+                    push( @{$best_group->{$best_aln->get_saccver}}, $best_aln);
+                }
+            }
+        }
+
+        my %used_seq;
+        for my $ann (@{$defined_anns}){
+            my $seq = $ann->get_seqname;
+            my ($name, $sta0, $sta, $end) = ($direction eq "s2q") ? ("qaccver","sstart","qstart","qend") : ("saccver","qstart","sstart","send") ;
+            for my $uann (sort{$a->{$sta0} <=> $b->{$sta0}} @{$best_group->{$seq}}){    # if there are some queries matching to one subject, sort them by their start position
+                my $bed = ANNOTATION->new();
+                $bed->set_seqname($uann->{$name});
+                if($len_def){
+                    $bed->set_start(1);
+                    $bed->set_end($udfseq_data->{$uann->{$name}}->get_length);
+                } else{
+                    $bed->set_start($udfseq_data->{$uann->{$name}}->get_start);
+                    $bed->set_end($udfseq_data->{$uann->{$name}}->get_end);
+                }
+                push(@{$undef_anns}, $bed);
+                ++$used_seq{$uann->{$name}};
+            }
+        }
+
+        for my $seq (sort keys %{$udfseq_data}){
+            next if($used_seq{$seq}); # Queries that have no best subject
+            my $bed = ANNOTATION->new();
+            $bed->set_seqname($seq);
+            if($len_def){
+                $bed->set_start(1);
+                $bed->set_end($udfseq_data->{$seq}->get_length);
+            } else{
+                $bed->set_start($udfseq_data->{$seq}->get_start);
+                $bed->set_end($udfseq_data->{$seq}->get_end);
+            }
+            push(@{$undef_anns}, $bed);
+        }
+        return $undef_anns;
+    }
+
+    sub check_sunk{
+		my $check=0;
+        my ($qsta1, $qend1, $ssta1, $send1) = ($_[0]->get_qstart, $_[0]->get_qend, $_[0]->get_sstart, $_[0]->get_send);
+        my ($qsta2, $qend2, $ssta2, $send2) = ($_[1]->get_qstart, $_[1]->get_qend, $_[1]->get_sstart, $_[1]->get_send);
+		($ssta1,$send1) = ($send1,$ssta1) if($send1<$ssta1);
+		($ssta2,$send2) = ($send2,$ssta2) if($send2<$ssta2);
+		$check = 1 if(  
+            ($qsta1<=$qsta2 && $qend2<=$qend1) || 
+            ($qsta2<=$qsta1 && $qend1<=$qend2) ||
+            ($ssta1<=$ssta2 && $send2<=$send1) ||
+            ($ssta2<=$ssta1 && $send1<=$send2) 
+        );
+		return $check;
+    }
+
+    sub check_overlap_in_bp_search{
+		my $check=0;
+        # tolerance of overlaping (base pair)
+        my $bp_overlap_bp = ($_[0]->get_length < $_[1]->get_length) ? $_[0]->get_length * $_[3] : $_[1]->get_length * $_[3] ;
+        $check = 1 if($_[1]->get_qstart+$bp_overlap_bp < $_[0]->get_qend );
+        if($_[2] eq "F"){
+            $check = 1 if($_[1]->get_sstart+$bp_overlap_bp < $_[0]->get_send );
+        } elsif($_[2] eq "R"){
+            $check = 1 if($_[0]->get_sstart+$bp_overlap_bp < $_[1]->get_send );
+        } else{
+            die;
+        }
+        return $check;
+    }
+}1;
+
+package GIZMO {
+    # check type
+    
+    sub check{
+        return 0 if(! $_[0]);
+        my $check = 1;
+        if($_[1] eq "bool"){ # 0 or 1
+            $check = 0 unless($_[0] =~ /true/i || $_[0] =~ /false/i || $_[0] eq "1" || $_[0] eq "0");
+        } elsif($_[1] eq "prop"){ # propoertion (0<, <1)
+            $check = 0 unless($_[0] =~ /^0\.(\d+)$/);
+        } elsif($_[1] eq "uint"){ # positibe integer
+            $check = 0 unless($_[0] =~ /^(\d+)$/);
+        } elsif($_[1] eq "value"){
+            $check = 0 unless($_[0] =~ /(\d+)/ || $_[0] =~ /(\d+)\.(\d+)/ || $_[0] =~ /\-(\d+)/ || $_[0] =~ /\-(\d+)\.(\d+)/);
+        } elsif($_[1] eq "percent"){
+            $check = 0 unless( ($_[0] =~ /(\d+)/ || $_[0] =~ /(\d+)\.(\d+)/) && $_[0] >= 0);
+        } elsif($_[1] eq "extreme"){
+            $check = 0 unless( ($_[0] =~ /(\d+)/ || $_[0] =~ /(\d+)\.(\d+)/ || $_[0] =~ /^(\d)\.(\d+)e\-(\d+)$/i) && $_[0] >= 0);
+        } elsif($_[1] eq "string"){
+            $check = 0 unless( $_[0] =~ /^\S+$/ );
+        } elsif($_[1] eq "range"){
+            if( check_value($_[0]) && check_value($_[2]) && check_value($_[3]) ){
+                $check = 0 unless($_[2]<=$_[0] && $_[0]<=$_[3] );
+            } else{
+                $check = 0 ;
+            }
+        } elsif($_[1] eq "file"){
+            $check = 0 unless( -e $_[0] );
+        } else{
+            die "Unknown data type:\t".$_[0]."\n";
+        }
+        return $check;
+    }
+
+    sub check_value{ 
+        return 0 if(! $_[0]);
+        my $check = 1;
+        for my $dt (qw(prop uint value percent extreme)){
+            $check = 1 if check($_[0], $dt);
+        }
+        return $check;
+    }
+
+	sub add_comma{
+		my $out = $_[1];
+		1 while $out =~ s/(.*\d)(\d\d\d)/$1,$2/;
+		return $out;
+	}
+
+    sub inputting_error{
+        # $_[0] : option's name
+        die "Please enter the parameter, ".$_[0].", correctly!!\nSTOP\n";
+    }
+
+    sub return_quartile{
+        # $_[0] : array of values
+        return 0 if( ! $_[1]);  # Return undef if the array is empty
+
+        my @array = sort { $a <=> $b } @{$_[1]};  # Sort numerically
+
+        my $count = @array;
+        my $mid = int($count/2);
+
+        my @lower = @array[0 .. $mid - 1];
+        my @upper = @array[ ($count % 2) ? $mid+1 : $mid .. $count-1 ];
+
+        my $q1 = return_median(@lower);
+        my $q2 = return_median(@array);
+        my $q3 = return_median(@upper);
+
+        return ($q1, $q2, $q3);
+    }
+
+    sub return_median {
+        return 0 if(! $_[0]);
+        
+        my @array = sort { $a <=> $b } @_;
+        my $count = @array;
+        if ($count % 2) {
+            return $array[int($count/2)];
+        } else {
+            return ($array[$count/2 - 1] + $array[$count/2]) / 2;
+        }
+    }
+}1;
+
+package ANNOTATION { # 1-based
+    my @gff_cols = qw(seqname source feature start end score strand frame attributes);
+    my @bed_cols = qw(seqname start end attributes);
+
+    sub new{
+        my ($class, $args) = @_;
+        $args->{$_} //= "" for @gff_cols;
+        if($args->{start} && $args->{end} && $args->{end} < $args->{start}){
+            ($args->{start}, $args->{end}) = ($args->{end}, $args->{start}); # always $start < $end
+            $args->{strand} = 1 ; #$strand = 1 when $end < $start
+        }
+        my $self = {
+            seqname		=> $args->{seqname		},
+            source		=> $args->{source		},
+            feature		=> $args->{feature		},
+            start		=> $args->{start		},
+            end			=> $args->{end			},
+            score		=> $args->{score		},
+            strand		=> $args->{strand		}, # Forward = 0, Reverse = 1
+            frame		=> $args->{frame		},
+            attributes	=> $args->{attributes	},
+            line        => $args->{line         },
+        };
+        bless $self, $class;
+        return $self;
+    }
+
+    # getter
+    sub get_seqname{ return $_[0]->{seqname}}
+    sub get_source{ return $_[0]->{source}}
+    sub get_feature{ return $_[0]->{feature}}
+    sub get_start{ return $_[0]->{start}}
+    sub get_end{ return $_[0]->{end}}
+    sub get_score{ return $_[0]->{score}}
+    sub get_strand{ return $_[0]->{strand}}
+    sub get_frame{ return $_[0]->{frame}}
+    sub get_attributes{ return $_[0]->{attributes}}
+    sub get_line{ return $_[0]->{line}}
+    # setter
+    sub set_seqname{ $_[0]->{seqname} = $_[1];}
+    sub set_source{ $_[0]->{source} = $_[1];}
+    sub set_feature{ $_[0]->{feature} = $_[1];}
+    sub set_start{ $_[0]->{start} = $_[1];}
+    sub set_end{ $_[0]->{end} = $_[1];}
+    sub set_score{ $_[0]->{score} = $_[1];}
+    sub set_strand{ $_[0]->{strand} = $_[1];}
+    sub set_frame{ $_[0]->{frame} = $_[1];}
+    sub set_attributes{ $_[0]->{attributes} = $_[1];}
+
+    sub get_gff{
+        my $self = shift;
+        $self->{$_} ||= "." for @gff_cols;
+        return join("\t", $self->{seqname}, $self->{source}, $self->{feature}, $self->{start}, $self->{end}, $self->{score}, $self->{strand}, $self->{frame}, $self->{attributes});
+    }
+    sub get_bed{
+        my $self = shift;
+        my $sta = ($self->{start}) ? $self->{start}-1 : -1 ;
+        return join("\t", $self->{seqname}, $sta, $self->{end}, $self->{attributes});
+    }
+}1;
+
+package ANNOTATION_ASSEMBLY {
+    use Data::Dumper;
+    my @gff_cols = qw(seqname source feature start end score strand frame attributes);
+    my @bed_cols = qw(seqname start end attributes);
+    my @rmout_cols = qw(swscr percdiv percdel percins seqname start end left repname clafam beginrep leftinrep strand);
+
+    sub new{
+        my ($class, $string, $delimiters, $annfmt) = @_;
+
+        my ($file, $anns);
+        if( ! $string){
+            $file = "";
+            $anns = qw();
+        } elsif($string eq "-"){
+            $annfmt //= "gff";
+            $file = "-";
+            if($annfmt =~ /gff/i || ! $annfmt){
+                $anns = read_gff($string);
+            } elsif($annfmt =~ /bed/i){
+                $anns = read_bed($string);
+            } elsif($annfmt =~ /out/i){
+                $anns = read_rmout($string);
+            } else{
+                die "Please check the suffix of file!\n";
+            }
+        } elsif(GIZMO::check($string, "file")){ # read BED file > region
+            $file = $string;
+            if($string =~ /\.gff/){
+                $anns = read_gff($string);
+            } elsif($string =~ /\.bed/){
+                $anns = read_bed($string);
+            } elsif($string =~ /\.out/){
+                $anns = read_rmout($string);
+            } else{
+                die "Please check the suffix of file!\n";
+            }
+        } else{ # read the parameter > region
+            $file = "";
+            $anns = string2bed($string, $delimiters);
+        }
+
+        my $self = { 
+            file    => $file,
+            anns    => $anns, # ($ann1, $ann2, $ann3, ...)
+        };
+
+        bless $self, $class;
+        return $self;        
+    }
+    # getter
+    sub get_file{ return $_[0]->{file}}
+
+    sub string2bed{
+        my ($string, $delimiters) = @_;
+        my ($d1, $d2, $d3, $d4) = split("", $delimiters); 
+
+        my $anns;
+        for my $reg (split(/$d1/, $string)){
+            my $bed;
+            if($reg =~ /^(\S+)$d2(\d*)$d3(\d*)$d4(\S+)$/){ # seqname, start, end, attributes
+                ($bed->{seqname}, $bed->{start}, $bed->{end}, $bed->{attributes}) = ($1,$2,$3,$4) ;
+            } elsif($reg =~ /^(\S+)$d2(\d*)$d3(\d*)$/){ # seqname, start, end
+                ($bed->{seqname}, $bed->{start}, $bed->{end}) = ($1,$2,$3) ;
+            } elsif($reg =~ /^(\S+)$/){ # only seqname
+                $bed->{seqname} = $1;
+                $bed->{start}=0;
+                $bed->{end}=0;
+            }
+            my $ann = ANNOTATION->new($bed);
+
+            push(@{$anns}, $ann);
+        } 
+        return $anns;
+    }
+
+    sub read_gff{
+        my $gff_file = $_[0];
+        die "Please enter the file path correctly!!!!!!\nSTOP\n" if( $gff_file ne "-" && ! GIZMO::check($gff_file, "file"));
+
+        my $anns;
+        open my $IN, "<".$gff_file || die "I can\'t open the file, ".$gff_file." !!\nSTOP\n";
+            while(my $line = <$IN>){
+                next if($line =~ /^#/ || $line !~ /\w/);
+                chomp($line);
+                my @data = split(/\t/, $line);
+                my $data;
+                $data->{$gff_cols[$_]} = $data[$_] for(0..8);
+                $data->{line} = $line;
+                push(@{$anns}, ANNOTATION->new($data)); # $anns->{"ChrI"} = qw(gff gff gff ...)
+            }
+        close $IN;
+        return $anns;
+    }
+    sub out_gff{
+        my $self = shift;
+        for my $ann (@{$self->{anns}}){
+            print $ann->get_gff()."\n";
+        }
+    }
+
+    sub read_bed{
+        my $bed_file = shift;
+        die "Please enter the file path correctly!!\nSTOP\n" if( $bed_file ne "-" && ! GIZMO::check($bed_file, "file"));
+
+        my $anns;
+        open my $IN, "<".$bed_file || die "I can\'t open the file, ".$bed_file." !!\nSTOP\n";
+            while(my $line = <$IN>){
+                next if($line =~ /^#/ || $line !~ /\w/);
+                chomp($line);
+                my @data = split(/\t/, $line);
+                my $data;
+                $data->{$bed_cols[$_]} = $data[$_] for(0..3);
+                $data->{start} = "0" if( ! $data->{start});
+                $data->{end} = "0"   if( ! $data->{end});
+                if($data->{start} < $data->{end}){
+                    ++$data->{start};   # 0-based -> 1-based
+                } elsif($data->{end} < $data->{start}){
+                    ++$data->{end};     # 0-based -> 1-based
+                } else{
+                    print STDERR "This region data is not correct:\n\t".$line."\n";
+                    die "STOP\n";
+                }
+                $data->{line} = $line;
+                push(@{$anns}, ANNOTATION->new($data)); # $anns->{"ChrI"} = qw(gff gff gff ...)
+            }
+        close $IN;
+        
+        return $anns;
+    }
+    sub out_bed{
+        my $self = shift;
+        for my $ann (@{$self->{anns}}){
+            print $ann->get_bed()."\n";
+        }
+    }
+    sub get_beds{
+        my $self = shift;
+        my @anns;
+        for my $ann (@{$self->{anns}}){
+            push(@anns, $ann->get_bed());
+        }
+        return 
+    }
+
+	sub read_rmout{
+		my $rmout_file = shift;
+        die "Please enter the file path correctly!!\nSTOP\n" if( $rmout_file ne "-" && ! GIZMO::check($rmout_file, "file"));
+        my $anns;
+
+        open my $IN, "<".$rmout_file || die "I can\'t open the file, ".$rmout_file." !!\nSTOP\n";
+            while(my $line = <$IN>){
+                next if($line =~ /^#/ || $line !~ /\w/);
+                $line =~ s/^\s+//;
+                $line =~ s/\s+/\t/g;
+                chomp($line);
+                my @data = split(/\t/, $line);
+                next if(! $data[0] || $data[0] =~ /\D/);
+                next if(! $data[2]);
+
+                my $data;
+                $data->{$rmout_cols[$_]} = $data[$_] for(4,5,6);
+                $data->{line} = $line;
+                push(@{$anns}, ANNOTATION->new($data)); # $anns->{"ChrI"} = qw(gff gff gff ...)
+            }
+		close $IN;
+
+        return $anns;
+	}    
+}1;
+
+package DOTPLOTIC {
+    use List::Util qw(max min);
+    use Data::Dumper;
+    sub new {
+        my ($class, $blast_data, $parameters, $ann_files) = @_; 
+        my $self = {
+            blast_data      => $blast_data,
+            parameters      => $parameters,
+            ann_files       => $ann_files,
+
+            # svg_header      => set_header($witdh, $height),
+            # frame           => set_frame(),
+            # titles          => $args->{titles},
+            # query_object    => $args->{query_object},       # query names and lengths (TEXT)
+            # sbjct_object    => $args->{sbjct_object},       # subject names and lengths (LINE)
+            # separator_line  => $args->{separator_line},     # separator lines and scale lines (LINE)
+            
+            # annotation      => $args->{annotation},         # annotation (POLYGON)
+            # alignment_scale => $args->{alignment_scale},    # alignment scale (POLYGON)
+            # alignment       => $args->{alignment},          # alignment (LINE)
+            # svg_tail        => set_tail($click),
+        };
+        bless $self, $class;
+        return $self;
+    }
+
+    sub set_parameter{ # $_[0] = DOTPLOTIC object
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters}; 
+            # $: ratio, xs, xe, yx, ye, scl
+            # @: xss, yqs
+
+        my ($width, $height) = ($_[1], $_[2]);
+        my ($total_qlen, $total_slen) = ($blast_data->{meta_data}->get_query_total_len, $blast_data->{meta_data}->get_sbjct_total_len);
+
+        # ratio bp to px
+        $prm->{ratio} = ( $prm->{svg_width}/$prm->{svg_height} < $total_slen/$total_qlen )
+            ? ( $prm->{svg_width}  - $prm->{xs} -200 )/$total_slen      # horizontally long # 200 is for tha space where the scale bar of alignments 
+            : ( $prm->{svg_height} - $prm->{ys} -30  )/$total_qlen ;    # vertically long
+
+        $prm->{xe} = $prm->{xs} + $total_slen * $prm->{ratio}; # End of X-axis (px)
+        $prm->{ye} = $prm->{ys} + $total_qlen * $prm->{ratio}; # End of Y-axis (px)
+
+        # query start positions (y)
+        $prm->{yqs}[0] = $prm->{ys};
+        push ( @{$prm->{yqs}}, ($_->get_end() - $_->get_start() +1) * $prm->{ratio} + $prm->{yqs}[-1] ) 
+            for (@{$blast_data->{meta_data}->{query_order_region}});
+        
+        # subject start positions (x)
+        $prm->{xss}[0] = $prm->{xs};
+        push ( @{$prm->{xss}}, ($_->get_end() - $_->get_start() +1) * $prm->{ratio} + $prm->{xss}[-1] )
+            for (@{$blast_data->{meta_data}->{sbjct_order_region}});
+
+        # scale 
+        my $longer = ($total_qlen > $total_slen) ? $total_qlen : $total_slen ;
+        my $log = int(log($longer)/log($prm->{scale_log})) ;
+        my $sclu = 10**$log ; ## unit of scale lines
+        $prm->{scl} = $sclu;
+
+        # auto_layout
+        if($prm->{auto_layout} =~ /^off$/i){
+            $prm->{auto_layout} = 0;
+        } elsif($prm->{auto_layout} =~ /^on$/i){
+            $prm->{auto_layout} = 1;
+        } else{
+            die "Please choose 'On' or 'Off' as the 'auto_layout' option.\nSTOP\n";
+        };
+    } 
+
+	sub set_header{ # $_[0] = DOTPLOTIC object, ($width, $height)=($_[1], $_[2]);
+		my $header;
+        my ($width, $height)=($_[0]->{parameters}->{svg_width}, $_[0]->{parameters}->{svg_height});
+        my $bg_col = $_[0]->{parameters}->{bg_col};
+		my $head_lines = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+            <!-- Created with Inkscape (http://www.inkscape.org/) -->
+            <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+                "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+            <svg
+                xmlns:dc="http://purl.org/dc/elements/1.1/"
+                xmlns:cc="http://creativecommons.org/ns#"
+                xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+                xmlns:svg="http://www.w3.org/2000/svg"
+                xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+                xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+                width="¥¥width¥¥"
+                height="¥¥height¥¥"
+                viewBox="0 0 ¥¥width¥¥ ¥¥height¥¥"
+                id="svg2"
+                version="1.1"
+                style="background: #eee"
+                xmlns="http://www.w3.org/2000/svg" xmlns:xlink= "http://www.w3.org/1999/xlink">
+            <!-- -->
+            <rect x="0" y="0" width="¥¥width¥¥" height="¥¥height¥¥" stroke="black" fill="¥¥background_color¥¥" />
+            ';
+		$head_lines =~ s/\¥\¥width\¥\¥/$width/g;
+		$head_lines =~ s/\¥\¥height\¥\¥/$height/g;
+        $head_lines =~ s/\¥\¥background_color\¥\¥/$bg_col/g;
+        $head_lines =~ s/\n        /\n/g;
+		
+        push( @{$header}, $head_lines);
+
+        $_[0]->{svg_header} = $header;
+    }
+   
+    sub set_tail { # $_[0] = DOTPLOTIC object : 
+        my $tail;
+        if($_[0]->{parameters}->{click}){
+            my $text_col = $_[0]->{parameters}->{legend_text_col};
+			my $showinfo='<!--SHOW_INFO-->
+                    <text id="info" fill="¥¥text_col¥¥" font-family="Arial" font-size="16"></text>
+                    <script type="text/javascript">
+                        function showInfo(info) {
+                            var end = 1169;
+                            var infoText = document.getElementById("info");
+                            if (infoText.textContent === info) {
+                                infoText.textContent = \'\';
+                                return;
+                            }
+                            infoText.textContent = info;
+                            infoText.setAttribute("x", event.clientX + 10);
+                            infoText.setAttribute("y", event.clientY + 10);
+                            var bbox = infoText.getBBox();
+                            if(event.clientX + bbox.width > end){
+                                if(end - bbox.width > 0){
+                                    infoText.setAttribute("x", end - bbox.width);
+                                    infoText.setAttribute("y", event.clientY +30);
+                                } else{
+                                    infoText.setAttribute("x", 10);
+                                    infoText.setAttribute("y", event.clientY +30);
+                                }
+                            }
+                            if (infoText.textContent === infoLines.join()) {
+                                infoText.textContent = \'\';
+                                infoText.setAttribute("x", 0);
+                                infoText.setAttribute("y", 0);
+                                return;
+                            }
+                        }
+                    </script>
+                <!--SHOW_INFO_END-->
+        ';
+    		$showinfo =~ s/\¥\¥text_col\¥\¥/$text_col/g;
+            $showinfo =~ s/\n                /\n/g;
+            push(@{$tail}, $showinfo)
+        };
+
+		push( @{$tail}, '</svg>');
+        
+        $_[0]->{svg_tail} = $tail;
+	}
+
+    sub set_alignment_space{ # $_[0] = DOTPLOTIC object
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+        my $ratio = $prm->{ratio};
+        my ($frame_lines);
+        # alignment region
+        my $rect = SVG->new('rect', {
+            "x"         => $prm->{xs},
+            "y"         => $prm->{ys},
+            "width"     => $prm->{xss}[-1] - $prm->{ys},
+            "height"    => $prm->{yqs}[-1] - $prm->{xs},
+            "fill"      => $prm->{alig_space_col},
+        });
+        $rect->{type} = "alignment_space";
+        push(@{$frame_lines}, $rect->as_svg() );
+        $_[0]->{alignment_space} = $frame_lines;
+    }
+
+    sub set_frame{ # $_[0] = DOTPLOTIC object
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+        my $ratio = $prm->{ratio};
+        my ($frame_lines);
+        $frame_lines->[0] = "<!--FRAME-->";
+        
+        my %set = (
+            "query" => "yqs",
+            "sbjct" => "xss",
+        );
+
+        # scale line group
+            my ($x1,$y1,$x2,$y2);
+            my $scl1 = $prm->{scl};
+            my $scl2 = $scl1/10;
+            my $group_line2_elements->{attributes} = {
+                "stroke"           =>  $prm->{sub_line_color1},
+                "stroke-width"     =>  $prm->{scale_stroke_width1},
+            };
+            my $group_line3_elements->{attributes} = {
+                "stroke"           =>  $prm->{sub_line_color2},
+                "stroke-width"     =>  $prm->{scale_stroke_width2},
+            };
+            my $group_line2 = SVG_GROUP->new($group_line2_elements);
+            my $group_line3 = SVG_GROUP->new($group_line3_elements);
+            for my $t (qw(query sbjct)){
+                my $t1 = $set{$t};
+                my $t2 = $t."_order_region";
+                for my $p (0..@{$blast_data->{meta_data}->{$t2}}-1){
+                    my $stp = $prm->{$t1}[$p];
+                    my $edp = $prm->{$t1}[$p+1];
+                    my $sta = $blast_data->{meta_data}->{$t2}[$p]->get_start();
+                    my $end = $blast_data->{meta_data}->{$t2}[$p]->get_end();
+                    my $rev = $blast_data->{meta_data}->{$t2}[$p]->get_strand;
+                    my $size = $end - $sta +1;
+                    my $sta_l = int($sta/$scl2)*$scl2; # start line
+                    for my $i (1..int($size/$scl2)){
+                        my $lined = $sta_l + $i*$scl2 - $sta; # distance of scale line from start position 
+                        if($rev){
+                            ($x1,$y1,$x2,$y2) = ($t eq "query")
+                                ? ($prm->{xs}, $edp - $lined*$ratio, $prm->{xe}, $edp - $lined*$ratio)
+                                : ($edp - $lined*$ratio, $prm->{ys}, $edp - $lined*$ratio, $prm->{ye}) ;
+                        } else{
+                            ($x1,$y1,$x2,$y2) = ($t eq "query")
+                                ? ($prm->{xs}, $stp + $lined*$ratio, $prm->{xe}, $stp + $lined*$ratio)
+                                : ($stp + $lined*$ratio, $prm->{ys}, $stp + $lined*$ratio, $prm->{ye}) ;
+                        }
+                        my $line = {
+                            "x1" => $x1,
+                            "x2" => $x2,
+                            "y1" => $y1,
+                            "y2" => $y2,
+                        };
+                        if(($sta_l+$i*$scl2) % $scl1){
+                            push( @{$group_line3->{objects}}, SVG->new('line', $line) );
+                        } else{
+                            push( @{$group_line2->{objects}}, SVG->new('line', $line) );
+                        }
+                    }
+                }
+            }
+            $group_line3->PourAsLine($frame_lines, "scale_line2");
+            $group_line2->PourAsLine($frame_lines, "scale_line1");
+
+        # sequence separating line group
+            my $group_line1_elements->{attributes} = {
+                "stroke"           =>  $prm->{frame_line_color},
+                "stroke-width"     =>  $prm->{frame_stroke_width},
+            };
+            my $group_line1 = SVG_GROUP->new($group_line1_elements);
+            for my $t (qw(query sbjct)){
+                my $t1 = $set{$t};
+                for my $stp (@{$prm->{$t1}}){ # start position (the left on subjects, the upper on query)
+                    ($x1,$y1,$x2,$y2) = ($t eq "query")
+                        ? ($prm->{xs}-5, $stp, $prm->{xe}, $stp)
+                        : ($stp, $prm->{ys}-5, $stp, $prm->{ye}) ;
+                    my $line = {
+                        "x1" => $x1,
+                        "x2" => $x2,
+                        "y1" => $y1,
+                        "y2" => $y2,
+                    };
+                    push( @{$group_line1->{objects}}, SVG->new('line', $line) );
+                }
+            }
+            $group_line1->PourAsLine($frame_lines);
+
+        # auto_layout
+        my ($sub_text_anchor, $que_text_anchor) = ("middle", "middle"); # of seqname
+        my ($name_rotate, $reg_exist) = (0,1);
+            # $name_rotate = 0 : default
+            # $name_rotate = 1 : rotate
+            # $reg_exist = 1 : default
+            # $reg_exist = 0 : removed
+        if($prm->{auto_layout}){
+            my ($max_name_size, $max_reg_size, $min_well_size, $well_sizes);
+            for my $t (qw(query sbjct)){
+                my $t1 = $set{$t};
+                my $t2 = $t."_order_region";
+                for my $p (0..@{$blast_data->{meta_data}->{$t2}}-1){
+                    my $stp = $prm->{$t1}[$p];
+                    my $edp = $prm->{$t1}[$p+1];
+                    my $size_px = $edp - $stp;
+                    push(@{$well_sizes}, $size_px);
+                    $min_well_size = $size_px if( ! $min_well_size || $size_px < $min_well_size);
+
+                    my $name_size = length($blast_data->{meta_data}->{$t2}[$p]->get_seqname()) * $prm->{seqname_fsize} * 0.9; 
+                    $max_name_size = $name_size if( ! $max_name_size || $max_name_size < $name_size);
+
+                    my $sta = $blast_data->{meta_data}->{$t2}[$p]->get_start();
+                    my $end = $blast_data->{meta_data}->{$t2}[$p]->get_end();
+                    my $reglen = length(GIZMO->add_comma($sta).GIZMO->add_comma($end)) +1; # +1 : space of between start and end "1 1234"
+                    my $reg_size = $reglen * $prm->{seqreg_fsize} * 0.9;
+                    $max_reg_size = $reg_size if( ! $max_reg_size || $reg_size < $max_reg_size);
+                }
+            }
+            $name_rotate = 1 if($min_well_size < $max_name_size);      # name rotated
+            $reg_exist   = 0 if($min_well_size < $max_reg_size);    # sta&end removed
+
+            my ($q1,$q2,$q3) = GIZMO->return_quartile($well_sizes); # quartile 1/4, 1/2, 3/4
+            if($q1 < $prm->{seqname_fsize}*1.4){ # smallest : well is smaller than rotated one char
+                ($name_rotate, $reg_exist) = (1,0);       # name rotated, sta&end removed
+                $prm->{seqname_fsize} = $q1 /1.4;
+            }
+        }
+
+        ($que_text_anchor, $sub_text_anchor) = ("end", "start") if($name_rotate);
+
+        my $seqname_fsize = $prm->{seqname_fsize} // 10;
+        my $seqreg_fsize  = $prm->{seqreg_fsize}  // 5;
+
+        # names and regions of sequence
+            my $group_text_elements1->{attributes} = { # query name
+                "font-size"     =>  $seqname_fsize."pt",
+                "fill"          =>  $prm->{legend_text_col},
+                "font-family"   =>  $prm->{seqname_font},
+                "text-anchor"   =>  $que_text_anchor,
+            };
+            my $group_text1 = SVG_GROUP->new($group_text_elements1);
+
+            my $group_text_elements2->{attributes} = { # subject name
+                "font-size"     =>  $seqname_fsize."pt",
+                "fill"          =>  $prm->{legend_text_col},
+                "font-family"   =>  $prm->{seqname_font},
+                "text-anchor"   =>  $sub_text_anchor,
+            };
+            my $group_text2 = SVG_GROUP->new($group_text_elements2);
+
+            my $group_text_elements3->{attributes} = { # sequence start position
+                "font-size"     =>  $seqreg_fsize."pt",
+                "fill"          =>  $prm->{legend_text_col},
+                "font-family"   =>  $prm->{seqreg_font},
+                "text-anchor"   =>  "end",
+            };
+            my $group_text3 = SVG_GROUP->new($group_text_elements3);
+
+            my $group_text_elements4->{attributes} = { # sequence end position
+                "font-size"     =>  $seqreg_fsize."pt",
+                "fill"          =>  $prm->{legend_text_col},
+                "font-family"   =>  $prm->{seqreg_font},
+                "text-anchor"   =>  "start",
+            };
+            my $group_text4 = SVG_GROUP->new($group_text_elements4);
+
+            for my $t (qw(query sbjct)){
+                my $t1 = $set{$t};
+                my $t2 = $t."_order_region";
+                for my $i (0..@{$prm->{$t1}}-2){
+                    my $seqname = $blast_data->{meta_data}->{$t2}[$i]->get_seqname();
+                    my ($sta,$end) = ($blast_data->{meta_data}->{$t2}[$i]->get_strand) 
+                        ? ($blast_data->{meta_data}->{$t2}[$i]->get_end(), $blast_data->{meta_data}->{$t2}[$i]->get_start()) 
+                        : ($blast_data->{meta_data}->{$t2}[$i]->get_start(), $blast_data->{meta_data}->{$t2}[$i]->get_end()); 
+                    my ($nmex, $nmey, $stax, $stay, $endx, $endy, $tsf_n, $tsf_s, $tsf_e, $text_name, $text_sta, $text_end);
+                    if($t eq "query") {
+                        ($nmex, $nmey) = ($prm->{xs}-5, ($prm->{$t1}[$i] + $prm->{$t1}[$i+1]) /2);
+                        $stax = $prm->{xs}-5;
+                        $stay = $prm->{yqs}[$i] +2;
+                        $endx = $prm->{xs}-5;
+                        $endy = $prm->{yqs}[$i+1] -2;
+                        my $rotate = ($name_rotate) ? 300 : 270 ;
+                        $tsf_n = "rotate($rotate, $nmex, $nmey)";
+                        $tsf_s = "rotate(270, $stax, $stay)";
+                        $tsf_e = "rotate(270, $endx, $endy)";
+                    } else{ # subject
+                        ($nmex, $nmey) = (($prm->{xss}[$i] + $prm->{xss}[$i+1]) /2, $prm->{ys}-5); 
+                        $stax = $prm->{xss}[$i] +2;
+                        $stay = $prm->{ys} -2;
+                        $endx = $prm->{xss}[$i+1] -2;
+                        $endy = $prm->{ys} -2;
+                        if($name_rotate){
+                            $tsf_n = "rotate(-30, $nmex, $nmey)";
+                        }
+                    }
+                    $text_name = {
+                        "transform" => $tsf_n,
+                        "x" => $nmex,
+                        "y" => $nmey,
+                        "text" => $seqname,
+                    };
+                    $text_sta = {
+                        "transform" => $tsf_s,
+                        "x" => $stax,
+                        "y" => $stay,
+                        "text" => GIZMO->add_comma($sta),
+                    };
+                    $text_end = {
+                        "transform" => $tsf_e,
+                        "x" => $endx,
+                        "y" => $endy,
+                        "text" => GIZMO->add_comma($end),
+                    };
+                    if($t eq "query") {
+                        push( @{$group_text1->{objects}}, SVG->new('text', $text_name, $t."_name") );
+                        push( @{$group_text3->{objects}}, SVG->new('text', $text_sta, $t."_seq_sta") );
+                        push( @{$group_text4->{objects}}, SVG->new('text', $text_end, $t."_seq_end") );
+                    } else{
+                        push( @{$group_text2->{objects}}, SVG->new('text', $text_name, $t."_name") );
+                        push( @{$group_text4->{objects}}, SVG->new('text', $text_sta, $t."_seq_sta") );
+                        push( @{$group_text3->{objects}}, SVG->new('text', $text_end, $t."_seq_end") );
+                    }
+                }
+            }
+            if( 1< $prm->{seqname_fsize}){
+                $group_text1->PourAsLine($frame_lines);
+                $group_text2->PourAsLine($frame_lines);
+            }
+            if($reg_exist){
+                $group_text3->PourAsLine($frame_lines);
+                $group_text4->PourAsLine($frame_lines);
+            }
+
+        push(@{$frame_lines}, "<!--FRAME_END-->\n");
+        $_[0]->{frame} = $frame_lines;
+    }
+
+    sub set_identity_scale{ # $_[0] = DOTPLOTIC object : 
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+
+        my $box_size = 75;
+        my ($L, $M, $U) = @{$prm->{col_set}->{idn}};
+        my ($idnL, $idnU) = ($prm->{aln_idn_min}, $prm->{aln_idn_max});
+
+        my $identity_scale_line;
+        $identity_scale_line->[0] = "<!--IDENTITY_SCALE-->";
+
+        my $gradient='<defs>
+            <linearGradient id="identity_scale" x1="0" x2="0" y1="1" y2="0" >
+                <stop offset="0%" stop-color="'.$L.'"/>
+                <stop offset="50%" stop-color="'.$M.'"/>
+                <stop offset="100%" stop-color="'.$U.'"/>
+            </linearGradient>
+        </defs>';
+        $gradient =~ s/\n        /\n/g;
+        push(@{$identity_scale_line}, $gradient);
+        
+        my $x = $prm->{xe} +20;
+        my $y = $prm->{ys} ;
+
+        my $rect = SVG->new('rect', {
+            "x" => $x,
+            "y" => $y+20,
+            "width" => 20,
+            "height" => $box_size,
+            "style" => "fill: url(#identity_scale); stroke: none;",
+        });
+        push(@{$identity_scale_line}, $rect->as_svg() );
+
+        my $group_text_attributes1->{attributes} = {
+            "font-size"     =>  $prm->{legend_fsize},
+            "fill"          =>  $prm->{legend_text_col},
+            "font-family"   =>  $prm->{legend_font},
+            "text-anchor"   =>  "start",
+            "dominant-baseline" => "middle",
+        };
+        my $group_text = SVG_GROUP->new($group_text_attributes1);
+        my $text1 = {
+            "x" => $x+25,
+            "y" => $y+20,
+            "text" => $idnL."%",
+        };
+        my $text2 = {
+            "x" => $x+25,
+            "y" => $y+$box_size+20,
+            "text" => $idnU."%",
+        };
+        my $text3 = {
+            "text" => "Identity",
+            "x" => $x,
+            "y" => $y-5,
+            "font-size"     => $prm->{legend_fsize},
+            "font-family"   => $prm->{legend_font},
+            "font-weight"   => "bold",
+            "dominant-baseline" => "middle",
+        };
+        push( @{$group_text->{objects}}, SVG->new('text', $text1) );
+        push( @{$group_text->{objects}}, SVG->new('text', $text2) );
+        push( @{$group_text->{objects}}, SVG->new('text', $text3) );
+        $group_text->PourAsLine($identity_scale_line);
+
+        push(@{$identity_scale_line}, "<!--IDENTITY_SCALE_END-->\n");
+        $_[0]->{identity_scale} = $identity_scale_line;
+    }
+
+    sub set_annotation_color_pattern{ # $_[0] = DOTPLOTIC object,
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters}; 
+        my $ann_files = $_[0]->{ann_files};
+
+        return 1 if( ! $ann_files || scalar @{$ann_files} < 3); # 0, 1 or 2
+
+        my $bn = scalar @{$ann_files};
+        my ($fst, $lst) = (substr($prm->{col_set}->{ann}->[0],1), substr($prm->{col_set}->{ann}->[1],1));
+        my @cols = inter_cols($bn, $fst, $lst);
+        for my $i (0..@{$ann_files}-1){
+            $prm->{col_set}->{ann}->[$i] = $cols[$i];
+        }
+    }
+
+    sub inter_cols{
+        my ($bn, $rgb1, $rgb2) = @_;
+        my @one = $rgb1 =~ /.{2}/g;
+        my @two = $rgb2 =~ /.{2}/g;
+
+        my @rs;
+        for my $i (0,1,2){
+            push(@rs, [vals_inter_2hexs($bn, $one[$i], $two[$i])]); # @{$rs[0]} ; array of RED values
+        }
+        my @ic;
+        for my $i (0..$bn-1) {
+            $rs[$_][$i] = substr("0".$rs[$_][$i], -2,2) for (0,1,2);
+            push(@ic, "#".$rs[0][$i].$rs[1][$i].$rs[2][$i]);
+        }
+        return @ic;
+    }
+
+    sub vals_inter_2hexs{
+        my ($bn, $hx1, $hx2) = @_;
+        ($hx1, $hx2) = (hex($hx1), hex($hx2));
+        my @vals;
+        if($hx1 eq $hx2){
+            return (uc(sprintf("%x", $hx1))) x $bn;
+        }
+        my $step_size = abs($hx2 - $hx1)/($bn-1) ;
+
+        for my $i (0..$bn-1){
+            if($hx1 < $hx2){
+                push(@vals, substr("0".uc(sprintf("%x", int($hx1 + $step_size*$i))), -2,2));
+            } else{
+                push(@vals, substr("0".uc(sprintf("%x", int($hx1 - $step_size*$i))), -2,2));
+            }
+        }
+        return @vals;
+    }
+
+    sub set_annotation_legends{ # $_[0] = DOTPLOTIC object
+        my $ann_legends;
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters}; 
+        my $ann_files = $_[0]->{ann_files}; 
+
+        $ann_legends->[0] = "<!--ANNOTATION_LEGENDS-->";
+        if( ! $ann_files){
+            push(@{$ann_legends}, "<!--ANNOTATION_LEGENDS_END-->\n");
+            $_[0]->{annotation_legends} = $ann_legends;
+            return 1;
+        } elsif( 21 < scalar @{$ann_files} ){
+            die "Up to 21 files are supported.\nSTOP\n";
+        }
+
+        my $x = $prm->{xe} +20;
+        my $y = $prm->{ys} +150;
+
+        my $text = {
+            "text" => "Annotation",
+            "x" => $x,
+            "y" => $y,
+            "fill"          =>  $prm->{legend_text_col},
+            "font-size"     =>  "12pt",
+            "font-family"   => $prm->{legend_font},
+            "font-weight"   => "bold",
+        };
+        push(@{$ann_legends}, SVG->new('text', $text)->as_svg );
+
+        # Box
+        my $box_size = 20;
+
+        # Name
+        $x = $prm->{xe} +20  + $box_size +5;
+        $y = $prm->{ys} +160 + $box_size/2;
+        my $group_text_attributes->{attributes} = {
+            "font-size"     =>  "10pt",
+            "fill"          =>  $prm->{legend_text_col},
+            "font-family"   =>  "Osaka",
+            "font-weight"   =>  "Mono",
+            "text-anchor"   =>  "start",
+            "dominant-baseline" => "middle",
+        };
+        my $group_texts = SVG_GROUP->new($group_text_attributes);
+        for my $i (0..@{$ann_files}-1){
+            my $text = $ann_files->[$i]->{name} // $ann_files->[$i]->{file};
+            $text = substr($text, 0, 15)."..." if($text && 15 < length $text);
+            push( @{$group_texts->{objects}}, SVG->new('text', {
+                "x" => $x,
+                "y" => $y,
+                "text" => $text,
+            }));
+            $y += $box_size +10;
+        }
+        $group_texts->PourAsLine($ann_legends);
+
+        push(@{$ann_legends}, "<!--ANNOTATION_LEGENDS_END-->\n");
+        $_[0]->{annotation_legends} = $ann_legends;
+    }
+
+    sub set_annotation{ # $_[0] = DOTPLOTIC object
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+        my $ratio = $prm->{ratio};
+        my $ann_files = $_[0]->{ann_files};
+        my $click = $prm->{click};
+
+        my $annotations;
+        $annotations->[0] = "<!--ANNOTATION-->";
+        if( ! $ann_files){
+            push(@{$annotations}, "<!--ANNOTATION_END-->\n");
+            $_[0]->{annotation} = $annotations;
+            return 1;
+        } elsif( 20 < scalar @{$ann_files} ){
+            die "Up to 20 files are supported.\nSTOP\n";
+        }
+
+        my %set = (
+            "query" => "yqs",
+            "sbjct" => "xss",
+        );
+        my ($x,$y,$width, $height);
+        $y = $prm->{ys} +160;
+        for my $i (0..@{$ann_files}-1){
+            my $text = $ann_files->[$i]->{name} // $ann_files->[$i]->{file};
+            my $col  = $ann_files->[$i]->{col}  // $prm->{col_set}->{ann}->[$i];
+            my $opc  = $ann_files->[$i]->{opac} // $prm->{ann_opacity};
+
+            if(is_valid_svg_color($col)){
+                $col = "#".$col;
+            }
+
+            my $group_rect_attributes->{attributes} = {
+                "stroke"    =>  $col,
+                "opacity"   =>  $prm->{frame_stroke_width},
+                "fill"          => $col,
+                "opacity"       => $opc,
+            };
+            my $group_rects = SVG_GROUP->new($group_rect_attributes);
+            my $box_size = 20;
+            # Legend Box
+            push( @{$group_rects->{objects}}, SVG->new('rect', {
+                "x" => $prm->{xe} +20,
+                "y" => $y,
+                "width"         => $box_size,
+                "height"        => $box_size,
+                "stroke"        => $prm->{legend_text_col},
+            }));
+            $y += $box_size +10;
+
+            my $j=0;
+            for my $t (qw(query sbjct)){
+                my $t1 = $set{$t};
+                my $t2 = $t."_order_region";
+                $j=0;
+                for my $bed (@{$blast_data->{meta_data}->{$t2}}){
+                    my $seqname = $bed->get_seqname;
+                    my $bsta    = $bed->get_start;
+                    my $bend    = $bed->get_end;
+                    my $rev     = $bed->get_strand;
+                    my $psta    = $prm->{$t1}[$j]; # start position (px) of query/subject
+                    my $ann_array = $ann_files->[$i]->{anns};
+                    if( ! $ann_array->[0]){
+                        ++$j;
+                        next; 
+                    }
+
+                    for my $ann (@{$ann_array}){
+                        next if($ann->get_seqname ne $seqname);
+                        next if($ann->get_end < $bsta || $bend < $ann->get_start);
+                        my ($x,$y,$w,$h);
+                        my $line; 
+                        if($click){
+                            $line = $ann->get_line();
+                            if($line){
+                                $line =~ s/\s+/ /g;
+                                $line =~ s/[\'\&\"\<\>]//g;
+                                $line = substr($line, 0, 97)."..." if(99 < length($line));
+                            }
+                        }
+                        if($t eq "query"){
+                            $x = $prm->{xs};
+                            $w = $prm->{xe}-$prm->{xs};
+                            if($rev){
+                                $y = ($bsta < $ann->get_start) 
+                                    ? $psta + ($bend - $ann->get_end)*$ratio 
+                                    : $psta;
+                                $h = ($ann->get_end < $bend) 
+                                    ? ($ann->get_end - $ann->get_start)*$ratio
+                                    : ($bsta         - $ann->get_start)*$ratio;
+                            } else{
+                                $y = ($bsta < $ann->get_start) 
+                                    ? $psta + ($ann->get_start - $bsta)*$ratio
+                                    : $psta ;
+                                $h = ($ann->get_end < $bend) 
+                                    ? ($ann->get_end - $ann->get_start)*$ratio
+                                    : ($bend         - $ann->get_start)*$ratio;
+                            }
+                        } else{
+                            $y = $prm->{ys};
+                            $h = $prm->{ye}-$prm->{ys};
+                            if($rev){
+                                $x = ($bsta < $ann->get_start) 
+                                    ? $psta + ($bend - $ann->get_end)*$ratio 
+                                    : $psta;
+                                $w = ($ann->get_end < $bend) 
+                                    ? ($ann->get_end - $ann->get_start)*$ratio
+                                    : ($bsta         - $ann->get_start)*$ratio;
+                            } else{
+                                $x = ($bsta < $ann->get_start) 
+                                    ? $psta + ($ann->get_start - $bsta)*$ratio
+                                    : $psta ;
+                                $w = ($ann->get_end < $bend) 
+                                    ? ($ann->get_end - $ann->get_start)*$ratio
+                                    : ($bend - $ann->get_start)*$ratio;
+                            }
+                        }
+                        push( @{$group_rects->{objects}}, SVG->new('rect', {
+                            "x"         => $x,
+                            "y"         => $y,
+                            "width"     => $w,
+                            "height"    => $h,
+                            "line"      => $line,
+                        }));
+                    }
+                    ++$j;
+                }
+            }
+            $group_rects->PourAsLine($annotations, $text);
+        }
+
+        push(@{$annotations}, "<!--ANNOTATION_END-->\n");
+        $_[0]->{annotation} = $annotations;
+    }
+
+    sub align_direction{
+        # $_[0] = DOTPLOTIC object : 
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+        return 1 if( ! $prm->{align_direction} || $_[1] || $_[2] );
+
+        $blast_data->set_best_path_all();
+        my $best_path_all = $blast_data->{best_path};
+
+        my $best_q2s;
+        for my $q (keys %{$best_path_all}){
+            for my $s (keys %{$best_path_all->{$q}}){
+                if( ! $best_q2s->{score} || $best_q2s->{score} < $best_path_all->{$q}{$s}->get_bitscore ){
+                    $best_q2s->{$q}{score} = $best_path_all->{$q}{$s}->get_bitscore;
+                    $best_q2s->{$q}{cp} = $s; # counter part
+                }
+            }
+        }
+
+        for my $ann (@{$blast_data->{meta_data}->{query_order_region}}){
+            my $q = $ann->get_seqname;
+            my $cp = $best_q2s->{$q}{cp};
+            $ann->set_strand(1) if($best_path_all->{$q}{$cp}->get_sstrand eq "R");
+        }
+
+        return 1;
+    }
+
+    sub set_alignment{ # $_[0] = DOTPLOTIC object : 
+        my $blast_data = $_[0]->{blast_data};
+        my $prm = $_[0]->{parameters};
+        my $ratio = $prm->{ratio};
+        my $click = $prm->{click};
+
+        # closure for converting Identity to color
+        my $idn2color = idn2color($prm->{aln_idn_max}, $prm->{aln_idn_min}, $prm->{col_set});
+
+        my $alignment;
+        $alignment->[0] = "<!--ALIGNMENT-->";
+
+        my ($x,$y,$width, $height);
+        my $group_line_attributes->{attributes} = {
+            "stroke-width" =>  $prm->{aln_stroke_width},
+        };
+        my $group_lines = SVG_GROUP->new($group_line_attributes);
+
+        my ($i,$j, $total_align_n)=(0,0,0);
+        for my $sbed (@{$blast_data->{meta_data}->{sbjct_order_region}}){
+            $j=0;
+            my $s     = $sbed->get_seqname;
+            my $sbsta = $sbed->get_start;
+            my $sbend = $sbed->get_end;
+            my $sstr  = $sbed->get_strand;
+            my $xsta = $prm->{'xss'}[$i];
+            for my $qbed (@{$blast_data->{meta_data}->{query_order_region}}){
+                my $q    = $qbed->get_seqname;
+                my $qbsta = $qbed->get_start;
+                my $qbend = $qbed->get_end;
+                my $qstr  = $qbed->get_strand;
+                my $ysta = $prm->{'yqs'}[$j];
+                my $aln_array = $blast_data->{align}{$q}{$s};
+                if( ! $aln_array->[0]){
+                    ++$j;
+                    next;
+                }
+
+                for my $aln (@{$aln_array}){
+                    # Skip if the alignment is out of area
+                    next if(
+                        ($aln->get_sstart < $aln->get_send) && # the direction of query and subject is the same
+                        (($aln->get_send < $sbsta) || ($sbend < $aln->get_sstart) || ($aln->get_qend < $qbsta) || ($qbend < $aln->get_qstart))
+                    );
+                    next if(
+                        ($aln->get_send < $aln->get_sstart) && # the direction of query and subject is different
+                        (($aln->get_sstart < $sbsta) || ($sbend < $aln->get_send) || ($aln->get_qend < $qbsta) || ($qbend < $aln->get_qstart))
+                    );
+
+                    my $line = ($click) ? $aln->get_line() : "";
+                    my ($ssta, $send, $qsta, $qend);
+                    # Cut the alignment peeking out from area
+                    if($aln->get_sstart < $aln->get_send){ # the direction of query and subject is the same
+                        $ssta = max(intersect_x($qbsta, $aln), $sbsta, $aln->get_sstart);
+                        $qsta = max(intersect_y($sbsta, $aln), $qbsta, $aln->get_qstart);
+                        $send = min(intersect_x($qbend, $aln), $sbend, $aln->get_send);
+                        $qend = min(intersect_y($sbend, $aln), $qbend, $aln->get_qend);
+                    } else{ # the direction of query and subject is different
+                        $ssta = min(intersect_x($qbsta, $aln), $sbend, $aln->get_sstart);
+                        $qsta = max(intersect_y($sbend, $aln), $qbsta, $aln->get_qstart);
+                        $send = max(intersect_x($qbend, $aln), $sbsta, $aln->get_send);
+                        $qend = min(intersect_y($sbsta, $aln), $qbend, $aln->get_qend);
+                    }
+
+                    # Reverse them if the strand is 1 (=Rev)
+                    my ($x1,$x2) = ($sstr) ? ($sbend - $ssta, $sbend - $send) : ($ssta - $sbsta, $send - $sbsta) ; 
+                    my ($y1,$y2) = ($qstr) ? ($qbend - $qsta, $qbend - $qend) : ($qsta - $qbsta, $qend - $qbsta) ; 
+
+                    push( @{$group_lines->{objects}}, SVG->new('line', 
+                    {
+                        "x1"        => $xsta + $x1*$ratio,
+                        "x2"        => $xsta + $x2*$ratio,
+                        "y1"        => $ysta + $y1*$ratio,
+                        "y2"        => $ysta + $y2*$ratio,
+                        "stroke"    => "#".$idn2color->($aln->get_pident),
+                        "line"      => $line,
+                    }));
+                    ++$total_align_n;
+                }
+                ++$j;
+            }
+            ++$i;
+        }
+
+        if($prm->{auto_layout} && $total_align_n < 5000){
+            ++$group_lines->{attributes}->{"stroke-width"};
+        }
+
+        $group_lines->PourAsLine($alignment, "alignment");
+        push(@{$alignment}, "<!--ALIGNMENT_END-->\n");
+        $_[0]->{alignment} = $alignment;
+    }
+
+    sub is_valid_svg_color {
+        my $col = shift;
+        if ($col && $col =~ /^[0-9a-fA-F]{6}$/) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    sub idn2color{ # closure : identity -> color
+        my ($max_aln, $min_aln, $col_set) = @_ ;
+        my $hex_col;
+        ($hex_col->{max}, $hex_col->{mid}, $hex_col->{min}) = @{$col_set->{idn}};
+
+        my ($hex_rgb, $rgb);
+        for my $t1 (qw(max mid min)){
+            $hex_col->{$t1} = substr($hex_col->{$t1}, 1);
+            ($hex_rgb->{$t1}->{r}, $hex_rgb->{$t1}->{g}, $hex_rgb->{$t1}->{b}) = $hex_col->{$t1} =~ /.{2}/g;
+            for my $t2 (qw(r g b)){
+                $rgb->{$t1}->{$t2} = hex($hex_rgb->{$t1}->{$t2});
+            }
+        }
+
+        return sub{
+            my $idn = shift;
+            return "black" if($idn<0);
+            $idn = $min_aln if($idn < $min_aln);
+            $idn = $max_aln if($max_aln < $idn);
+            
+            my $idn2rgb;
+            my @hexs;
+            my $mid_aln = ($max_aln + $min_aln)/2;
+            if($idn < $mid_aln){
+                for my $e (qw(r g b)){
+                    my $d = ($rgb->{min}->{$e} < $rgb->{mid}->{$e})
+                        ? int(($idn - $min_aln)/($mid_aln-$min_aln)*abs($rgb->{mid}->{$e} - $rgb->{min}->{$e}) + $rgb->{min}->{$e})
+                        : int($rgb->{min}->{$e} - ($idn - $min_aln)/($mid_aln-$min_aln)*abs($rgb->{mid}->{$e} - $rgb->{min}->{$e})) ;
+                    $idn2rgb .= substr("0".uc(sprintf("%x", $d)), -2,2);
+                }
+            } else{
+                for my $e (qw(r g b)){
+                    my $d = ($rgb->{mid}->{$e} < $rgb->{max}->{$e})
+                        ? int(($idn - $mid_aln)/($max_aln-$mid_aln)*abs($rgb->{max}->{$e} - $rgb->{mid}->{$e}) + $rgb->{mid}->{$e})
+                        : $rgb->{mid}->{$e} - int(($idn - $mid_aln)/($max_aln-$mid_aln)*abs($rgb->{max}->{$e} - $rgb->{mid}->{$e})) ;
+                    $idn2rgb .= substr("0".uc(sprintf("%x", $d)), -2,2);
+                }
+            }
+            return $idn2rgb ;
+        }
+    }
+
+    sub intersect_x{ 
+        # my $x = intersect_x ($x_axis, $aln); 
+        my $y_of_xline = $_[0];
+        my $aln = $_[1];
+        my $x = $aln->get_sstart + ($y_of_xline - $aln->get_qstart)*($aln->get_send - $aln->get_sstart)/($aln->get_qend - $aln->get_qstart);
+        return $x;
+    }
+
+    sub intersect_y{ 
+        # my $y = intersect_y ($y_axis, $aln); 
+        my $x_of_yline = $_[0];
+        my $aln = $_[1];
+        my $y = $aln->get_qstart + ($aln->get_qend - $aln->get_qstart)*($x_of_yline - $aln->get_sstart)/($aln->get_send - $aln->get_sstart);
+        return $y;
+    }
+
+    sub get_dotplotic{ # $_[0] = DOTPLOTIC object : 
+        my $dotplotic_lines;
+        for my $att (qw(svg_header title query_object sbjct_object separator_line identity_scale annotation_legends alignment_space annotation frame alignment svg_tail)){
+            next if( ! $_[0]->{$att}[0]);
+            for my $svg (@{$_[0]->{$att}}){
+                push( @{$dotplotic_lines}, $svg);
+            }
+        }
+        return $dotplotic_lines;
+    }
+
+    sub output_dotplotic{ # $_[0] = DOTPLOTIC object : 
+        for my $att (qw(svg_header title query_object sbjct_object separator_line identity_scale annotation_legends alignment_space annotation frame alignment svg_tail)){
+            next if( ! $_[0]->{$att}[0]);
+            for my $output (@{$_[0]->{$att}}){
+                print $output."\n";
+            }
+        }
+        return 1;
+    }
+
+}1;
+
+package SVG_GROUP {
+    sub new {
+        my ($class, $args) = @_;
+        my $self = {
+            attributes  => $args->{attributes}, # ex) stroke="black" stroke-width="10"
+            objects     => $args->{objects},    # ex) qw(SVG SVG ...)
+        };
+        bless $self, $class;
+        return $self;
+    }
+
+    sub get_attributesAsLine{
+        my $attributesAsLine;
+        for my $element (sort keys %{$_[0]->{attributes}}){
+            die $element."\n" if( ! $_[0]->{attributes}->{$element});
+            $attributesAsLine .= $element."=\"".$_[0]->{attributes}->{$element}."\" ";
+        }
+        return $attributesAsLine;
+    }
+
+    sub PourAsLine{
+        push(@{$_[1]}, "<g ".$_[0]->get_attributesAsLine().">");
+        $_[1]->[-1] .= '<!--'.$_[2].'-->' if($_[2] && $_[2] ne "-");
+
+        push(@{$_[1]}, "\t".$_->as_svg()) for @{$_[0]->{objects}};
+        push(@{$_[1]}, "</g>");
+    }
+
+}1;
+
+package SVG {
+    use Data::Dumper;
+    my $attributes = {
+        'line' => [qw(x1 y1 x2 y2 stroke stroke-width stroke-dasharray stroke-linecap opacity)],
+        'rect' => [qw(x y width height rx ry fill stroke stroke-width opacity style)],
+        'text' => [qw(transform x y font-family font-size font-weight fill stroke stroke-width text-anchor dominant-baseline dy pacity)],
+    };
+    sub new {
+        my ($class, $element, $attributes, $type) = @_;
+        my $self = {
+            element     => $element,        # ex) line, text, rect, ... 
+            attributes  => $attributes,     # ex) $attributes->{x1} = 55
+            type        => $type,           # ex) sbjct_name, sbjct_seq_sta, sbjct_seq_end
+            text        => $attributes->{text},
+            line        => $attributes->{line},
+        };
+        bless $self, $class;
+        return $self;
+    }
+    sub get_element{ return $_[0]->{element}; }
+    sub get_type{ return $_[0]->{type}; }
+    sub get_text{ return $_[0]->{text}; }
+    sub get_line{ return $_[0]->{line}; }
+    sub get_attributes{ 
+        return $_[0]->{attributes}->{$_[0]->{element}}; 
+    }
+
+    sub as_svg{ # $_[0] = SVG_OBJECT
+        my $svg_format = "<".$_[0]->get_element()." ";
+        for my $att (@{$attributes->{$_[0]->get_element}}){
+            if($_[0]->{attributes}->{$att}){
+                $svg_format .= $att."=\"";
+                $svg_format .= $_[0]->{attributes}->{$att}."\" ";
+            }
+        }
+        if($_[0]->get_line){
+            my $line = $_[0]->get_line;
+            $line =~ s/\s+/\t/g;
+            $svg_format .= 'onclick="showInfo(\''.$line.'\', event)" ';
+        }
+        if($_[0]->get_element() eq 'text'){
+            $svg_format .= ">";
+            $svg_format .= $_[0]->get_text() if($_[0]->get_text());
+            $svg_format .= "</text>";
+        } else{
+            $svg_format .= "/>";
+        }
+
+        $svg_format .= "<!--".$_[0]->get_type."-->" if($_[0]->get_type);
+        return $svg_format;
+    }
+}1;
+
+#
+# Module Dependence
+#
+
+use v5.16.0;
+use strict;
+use warnings;
+use Getopt::Long qw(:config posix_default no_ignore_case gnu_compat);
+use Pod::Text;
+
+#
+# Main
+#
+
+my $CLASS = "Dotplotic";
+my $VERSION = "1.0.0";
+
+# Defalt values
+my $colset      = 1     ; # or 2    : 
+my $bg_colset   = 1     ; # or 2    :
+my $auto_layout = "On"  ; # or Off  :
+
+my $outfmt //= "6 std";
+
+my $this_file = $0;
+my $blast_file = "-";
+my ($help, $version, $annotation_files, $output_filename);
+my ($queries, $sbjects, $click, $align_direction, $identity_range, $light_mode);
+GetOptions(
+    'help|h'                => \$help,              # Support --help or -h
+    'version|v'             => \$version,           # Support --version or -v
+    'blast|b=s'             => \$blast_file,
+    'query|q=s'             => \$queries,
+    'subject|s=s'           => \$sbjects,
+    'outfmt=s'              => \$outfmt,
+    'annotation|ann=s'      => \$annotation_files,
+
+    'color_set=s'           => \$colset,            # The number of color set on alignment's identity
+    'bg_color_set=s'        => \$bg_colset,         # The number of background color set on alignment's identity
+    'align_direction'       => \$align_direction,
+    'identity_range=s'      => \$identity_range,
+    
+    'auto_layout=s'         => \$auto_layout,
+    'click'                 => \$click,
+    'light'                 => \$light_mode,
+
+    'out|o=s'               => \$output_filename,
+) || die "Error in command-line arguments. Use --help for usage.\n";
+
+# Display help
+help($help, $this_file);
+
+# Display version
+version($version, $VERSION); die $output_filename
+
+# color set of BLAST alignment and annotation
+my $all_colset;
+    $all_colset->[1]->{idn} = [qw(FF0000 FFFF00 00FF00)]; # red, yellow, lime
+    $all_colset->[2]->{idn} = [qw(00429D 73DFFF FDCB58)];
+    $all_colset->[3]->{idn} = [qw(D73027 FC8D59 91CF60)];
+
+    $all_colset->[1]->{ann} = [qw(006400 00008B)];
+    $all_colset->[2]->{ann} = [qw(8A3A7B 0E4A56)];
+my $col_set = $all_colset->[$colset];
+    map{$_ = '#'.$_} @{$col_set->{idn}};
+    map{$_ = '#'.$_} @{$col_set->{ann}};
+
+# background color set
+my $all_bg_colset;
+    $all_bg_colset->[1] = {bg => "black", alig_space_col => "black"  , base_line_col => "white", sub_line_color1 => "#DFDFDF", sub_line_color2 => "#9F9F9F", text_col => "white"}; # 2F2F2F = white * 3/16, 1F1F1F = white * 1/16
+    $all_bg_colset->[2] = {bg => "white", alig_space_col => "#A9A9A9", base_line_col => "black", sub_line_color1 => "#797979", sub_line_color2 => "#5E5E5E", text_col => "black"}; # 9F9F9F = white *10/16, DFDFDF = white *14/16
+my $bg_col_set = $all_bg_colset->[$bg_colset];
+
+# default values
+## Dotplotic
+my ($svg_width, $svg_height) = (1189, 841);
+## annotation opacity
+my ($ann_opac) = ("0.5");
+## Identity range (Default: 60-100)
+my ($idn_min, $idn_max) = set_identity_range($identity_range);
+
+my $dotplotic_parameters = {
+    bg_col              => $bg_col_set->{bg},               # Back ground color
+    svg_width           => $svg_width,                      # Width of SVG
+    svg_height          => $svg_height,                     # Height of SVG
+    xs                  => 50,                              # X-axis start position
+    ys                  => 50,                              # Y-axis start position
+    alig_space_col      => $bg_col_set->{alig_space_col},   # Color of alignment viewing region
+    frame_line_color    => $bg_col_set->{base_line_col},    # Color of frame lines
+    frame_stroke_width  => 2,                               # Width of frame lines
+    sub_line_color1     => $bg_col_set->{sub_line_color1},  # Color of scale line 1
+    sub_line_color2     => $bg_col_set->{sub_line_color2},  # Color of scale line 2
+    scale_log           => 10,                              # Log of scale lines
+    scale_stroke_width1 => 0.8,                             # Width of scale line 1
+    scale_stroke_width2 => 0.2,                             # Width of scale line 2
+    legend_text_col     => $bg_col_set->{text_col},         # Color of text in legends
+    
+    seqname_font        => "Times New Roman",               # Font of sequence name
+    seqreg_font         => "Arial",                         # Font of sequence start and end
+    legend_font         => "Arial",                         # Font of legend
+
+    legend_fsize        => 12,                              # Font of legend
+    seqname_fsize       => 10,                              # Font size of sequence name
+    seqreg_fsize        => 5,                               # Font size of sequence start and end
+
+    col_set             => $col_set,                        # Color set
+    aln_stroke_width    => 2,                               # Width of alignment lines
+    aln_idn_min         => $idn_min,                        # Minimum of the BLAST Identity
+    aln_idn_max         => $idn_max,                        # Maximum of the BLAST Identity
+    ann_opacity             => 0.5,                         # Opacity of annotation rectangles
+    ann_stroke_width        => 0,                           # Width of frame lines of annotation rectangles
+    ann_legend_stroke_width => 0.5,                         # Width of frame lines in legend of annotation 
+
+    click               => $click,
+    align_direction     => $align_direction,
+    auto_layout         => $auto_layout,                    # Modify the sequence starts, ends and names if the data is large
+};
+
+#
+#
+#
+
+# sequences and the regions that user specified: sort by name or length, auto, or user designation
+my $blast_conditions;
+if($light_mode){
+    $queries = "name";
+    $sbjects = "name";
+    $blast_conditions->{length} = "1000-";
+}
+my $query_reg = set_sequence_order($queries);
+my $sbjct_reg = set_sequence_order($sbjects);
+
+# Annotation files
+if($blast_file eq "-" && $annotation_files && $annotation_files =~ /^\-\:fmt/){
+    die "Standard input can not be specified for both the BLAST and annotation files simultaneously!\nSTOP\n";
+}
+my $ann_files = annotation($annotation_files);
+
+# BLAST file
+my @blast_lines;
+my $essential_to_dotplotic = "qaccver saccver pident length qstart qend sstart send bitscore";
+my @essential_to_dotplotic = split(/\s/, $essential_to_dotplotic);
+my %essential_to_dotplotic = map{($_,1)} @essential_to_dotplotic;
+
+$blast_file //= "-";
+my $blast_data = BLAST_DATA->new($blast_file, $outfmt, $essential_to_dotplotic, $query_reg, $sbjct_reg, $blast_conditions);
+
+# Dotplotic
+my $dotplotic = DOTPLOTIC->new($blast_data, $dotplotic_parameters, $ann_files);
+$dotplotic->set_parameter();
+$dotplotic->align_direction($queries, $sbjects);
+
+$dotplotic->set_header();
+
+$dotplotic->set_identity_scale();
+$dotplotic->set_annotation_color_pattern();
+$dotplotic->set_annotation_legends();
+
+$dotplotic->set_alignment_space();
+$dotplotic->set_frame();
+$dotplotic->set_annotation();
+$dotplotic->set_alignment();
+
+$dotplotic->set_tail();
+
+if($output_filename){
+    output_to_file($dotplotic, $output_filename);
+} else{
+    $dotplotic->output_dotplotic();
+}
+
+exit;
+
+#
+# Functions
+#
+
+sub help{
+    if ($_[0]) {
+        my $parser = Pod::Text->new();      # Create a Pod::Text parser
+        $parser->parse_from_file($_[1]);    # Parse POD from the current file
+        exit;
+    }
+    return 1;
+}
+
+sub version{
+    if ($_[0]) {
+        print "Dotplotic version $_[1]\n";
+        exit;
+    }
+}
+
+sub annotation{
+    my $anns;
+    return 0 if( ! $_[0]);
+    if(20 < scalar (split(/,/, $_[0]))){
+        die "The number of annotation files should be no more than 20.\nSTOP\n";
+    }
+    for my $fatt (split(/,/, $_[0])){ # file and attributes
+        my @atts = split(/\:/, $fatt); # ex) ann.gff:col=red:opac=0.4
+        my $fmt;
+        if($fatt =~ /fmt\=(\w+)/){
+            my $the_fmt = $1;
+            $fmt = $the_fmt if($the_fmt =~ /gff/i || $the_fmt =~ /bed/i || $the_fmt =~ /out/i);
+        }
+        if($atts[0] eq "-" && ! $fmt){
+            die "Please enter the annotation file format correctly!!\nSTOP\n";
+        }
+        my $ann = ANNOTATION_ASSEMBLY->new($atts[0], "", $fmt);
+        for my $att (@atts){
+            if($att =~ /^(\w+)\=([\#\w\.]+)$/){
+                my ($type,$val) = ($1,$2);
+                $type = "col"  if($type eq "color");
+                $type = "opac" if($type eq "opacity");
+                $ann->{$type} = $val ;
+            }
+        }
+        push(@{$anns}, $ann);
+    }
+    return $anns;
+}
+
+sub set_sequence_order{
+    my $qors = shift; # query or subject
+    my $region;
+    if( ! $qors || $qors eq "auto"){
+        $region->{sort_by} = "auto";
+    } elsif($qors eq "length"){
+        $region->{sort_by} = "length";
+    } elsif($qors eq "name"){
+        $region->{sort_by} = "name";
+    } else{
+        $region = ANNOTATION_ASSEMBLY->new($qors, ",:- "); 
+    }
+    return $region;
+}
+
+sub set_identity_range{
+    return (60, 100) if( ! $_[0]);
+
+    my ($min, $max) = split(/\-/, $_[0]);
+    my $check=1;
+    $check = 0 if(
+        ! $min || 
+        ! $max ||
+        ! GIZMO::check($min, "uint") || 
+        ! GIZMO::check($max, "uint") || 
+        100 < $min || 
+        100 < $max || 
+        $max <= $min
+    );
+    if(! $check){
+        print STDERR "Please input the identity range correctly! (e.g., 60-100)\nSTOP\n"; 
+        exit;
+    }
+    return ($min, $max);
+}
+
+sub output_to_file{
+    my $output_filename = $_[1];
+    open my $OUT, ">".$output_filename || die "I cannot open the output file!!\nSTOP\n";
+        for my $att (qw(svg_header title query_object sbjct_object separator_line identity_scale annotation_legends alignment_space annotation frame alignment svg_tail)){
+            next if( ! $_[0]->{$att}[0]);
+            for my $output (@{$_[0]->{$att}}){
+                print $OUT $output."\n";
+            }
+        }
+    close $OUT;
+    return 1;
+}
