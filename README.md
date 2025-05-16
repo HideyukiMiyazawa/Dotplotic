@@ -13,7 +13,7 @@
 ## Installation
 
 ```bash
-gh repo clone HideyukiMiyazawa/Dotplotic
+git clone https://github.com/HideyukiMiyazawa/Dotplotic.git
 chmod a+x Dotplotic # or perl Dotplotic ...
 ```
 
@@ -57,6 +57,7 @@ Dotplotic --blast Blast.tsv --click > Dotplotic.svg
 | `--version`           | Display the program version.| - |
 | `--help`              | Display the help message.| - |
 | `--blast`             | Path to BLAST search output file in tabular format.| None.(required)|
+| `--out`               | Path to output SVG file.| Off|
 | `--query`             | Path to a region file (.bed) or specify a region directly (e.g., "query1:1000-2000").|Off|
 | `--subject`           | Path to a region file (.bed) or specify a region directly (e.g., "subject1:1000-2000").|Off|
 | `--outfmt`            | Output format of the BLAST search.|`6 std`|
