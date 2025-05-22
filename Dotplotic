@@ -2356,7 +2356,7 @@ GetOptions(
 help($help, $this_file);
 
 # Display version
-version($version, $VERSION); die $output_filename
+version($version, $VERSION);
 
 # color set of BLAST alignment and annotation
 my $all_colset;
