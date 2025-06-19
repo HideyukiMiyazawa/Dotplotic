@@ -746,12 +746,12 @@ package BLAST_DATA {
         return BLAST_ALIGN->new($bp_sum) if(! $_[0]->[0]);
 
         my $bp_overlap_prop      = $_[3]->{bp_overlap_prop} // 0.01;
-        my $bp_min_reqr_len_prop = $_[3]->{bp_min_reqr_len_prop} // 0.01;
+        my $bp_min_reqr_len_prop = $_[3]->{bp_min_reqr_len_prop} // 0.001;
 
         my ($whole_bpscrs, $whole_strnds); # Total Bit Scores on best paths: $bp_scores->{$query}{$subject} = $total_bit_scores_on_best_path
 
         my ($q2s_bpscrs, $q2s_strnds);
-        my $min_mlen = ($qlen < $slen) ? $qlen*$bp_min_reqr_len_prop : $slen*$bp_min_reqr_len_prop ; 
+        my $min_mlen = ($qlen < $slen) ? $qlen*$bp_min_reqr_len_prop : $slen*$bp_min_reqr_len_prop ;
 
         my (@alignF, @alignR);
         for my $i (0..@{$_[0]}-1){
@@ -895,8 +895,8 @@ package BLAST_DATA {
                 }
             }
             next if($best_aln->get_sstart eq ".");
-            if( ($best_aln->get_qend - $best_aln->get_qstart)/2 < $best_aln->get_length &&
-                ($best_aln->get_send - $best_aln->get_sstart)/2 < $best_aln->get_length
+            if( ($best_aln->get_qend - $best_aln->get_qstart)/100 < $best_aln->get_length &&
+                ($best_aln->get_send - $best_aln->get_sstart)/100 < $best_aln->get_length
             ){ # Even if the subject is selected as Best, it will be skipped if the total alignment length is too short. 
                 if(($direction eq "q2s")){
                     push( @{$best_group->{$best_aln->get_qaccver}}, $best_aln);
@@ -2013,7 +2013,7 @@ package DOTPLOTIC {
         # $_[0] = DOTPLOTIC object : 
         my $blast_data = $_[0]->{blast_data};
         my $prm = $_[0]->{parameters};
-        return 1 if( ! $prm->{align_direction} || $_[1] || $_[2] );
+        return 1 if( $prm->{align_direction} || $_[1] || $_[2] );
 
         $blast_data->set_best_path_all();
         my $best_path_all = $blast_data->{best_path};
@@ -2342,7 +2342,7 @@ GetOptions(
 
     'color_set=s'           => \$colset,            # The number of color set on alignment's identity
     'bg_color_set=s'        => \$bg_colset,         # The number of background color set on alignment's identity
-    'align_direction'       => \$align_direction,
+    'align_direction|al'    => \$align_direction,
     'identity_range=s'      => \$identity_range,
     
     'auto_layout=s'         => \$auto_layout,
