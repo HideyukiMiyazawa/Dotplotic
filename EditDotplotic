@@ -3,9 +3,9 @@ use v5.16.0;
 use strict;
 use warnings;
 
-# EditDotplotic.pl rotate query_name +30, delete query_seq_sta, delete query_seq_end
-# EditDotplotic.pl rotate query_name +30 Dotplotic.svg
-# EditDotplotic.pl change ann_file.gff opacity 0.5
+# EditDotplotic rotate query_name +30, delete query_seq_sta, delete query_seq_end
+# EditDotplotic rotate query_name +30 Dotplotic.svg
+# EditDotplotic change ann_file.gff opacity 0.5
 
 my $VERSION = "v1.0";
 
@@ -21,6 +21,11 @@ my $actions = {
 	change	=> {pn	=> [qw(target attribute degree)],	target	=> [qw(alignment alignment_space scale_line1 scale_line2 query_name query_seq_sta query_seq_end sbjct_name sbjct_seq_sta sbjct_seq_end)],},
 		# change alignment stroke-width 2
 };
+
+if(-t STDIN && ! $ARGV[0]){
+    print STDERR "Use --help for usage information.\n\n";
+    help($actions) ;
+}
 
 my @args = @ARGV;
 

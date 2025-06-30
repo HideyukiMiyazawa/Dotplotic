@@ -95,6 +95,11 @@ GetOptions(
 
 # Display help
 my $this_file = $0;
+if(-t STDIN && ! $ARGV[0]){
+    print STDERR "Use --help for usage information.\n\n";
+    help(1, $this_file) ;
+}
+
 help($help, $this_file);
 
 # Display version
