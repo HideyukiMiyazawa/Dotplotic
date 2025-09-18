@@ -161,7 +161,7 @@ inkscape --export-type="pdf" Dotplotic.svg # Dotplotic.pdf will be generated
 ## Citation
 
 Dotplotic: a lightweight visualization tool for BLAST+ alignments and genomic annotations
-https://www.biorxiv.org/content/10.1101/2025.05.12.653581v1
+https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-025-06255-5
 
 
 ## License
